@@ -24,7 +24,7 @@ CREDENTIALS_FILE = BASE_DIR / "credentials.json"
 TOKEN_FILE = BASE_DIR / "token.json"
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-GMAIL_QUERY = "from:@substack.com OR subject:newsletter OR subject:Newsletter"
+GMAIL_QUERY = "from:@substack.com OR subject:newsletter"
 MAX_RESULTS = 50  # Full bodies are larger; 50 is the right batch size
 BODY_CHAR_LIMIT = 3000  # Per email — enough for deep content, fits in context
 

@@ -1,5 +1,8 @@
 ---
-description: Scan Gmail for new newsletters and produce a topic-grouped learning digest
+description: >
+  Scan Gmail for new newsletters and produce a topic-grouped learning digest.
+  Use when the user asks for newsletter digest, newsletter scan, latest newsletters,
+  or anything about scanning/reading/summarizing newsletters.
 allowed-tools: Bash(python scan_newsletters.py*), Write, Read
 ---
 

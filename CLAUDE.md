@@ -15,6 +15,12 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 - **Outputs** (summaries, reports) live in `<project>/summaries/` or `<project>/outputs/`
 - Never commit `credentials.json`, `token.json`, or `.env` files
 
+## Auto-invoke Skills
+
+| Natural language intent | Skill to invoke |
+|------------------------|-----------------|
+| newsletters, newsletter digest, newsletter scan, latest newsletters, summarize newsletters, "give me today's newsletters" | `newsletter-insights` |
+
 ## Adding a New Project
 
 1. Create a new subfolder under `Playground/`

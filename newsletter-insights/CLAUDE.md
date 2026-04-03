@@ -48,4 +48,4 @@ A browser window opens. Sign in with your Google account and grant access. This 
 
 ## Newsletter Detection
 
-The script filters emails using Gmail query `has:unsubscribe` which matches mailing-list style newsletters reliably without false positives on regular email.
+The script filters emails using Gmail query `from:@substack.com OR subject:newsletter`, which catches Substack publications and any email with "newsletter" in the subject line.
