@@ -1,11 +1,11 @@
 ---
-description: Scan Gmail for new newsletters and produce a deep-dive digest grouped by sender
-allowed-tools: Bash(python3 scan_newsletters.py*), Write, Read
+description: Scan Gmail for new newsletters and produce a topic-grouped learning digest
+allowed-tools: Bash(python scan_newsletters.py*), Write, Read
 ---
 
 # Newsletter Insights Skill
 
-Scan Gmail for new newsletters and produce a deep-dive digest so the user never needs to open the newsletters themselves.
+Scan Gmail for new newsletters and produce a topic-grouped learning digest.
 
 ## Steps
 
@@ -13,9 +13,9 @@ Scan Gmail for new newsletters and produce a deep-dive digest so the user never 
 
 2. Run the scanner:
    ```bash
-   python3 scan_newsletters.py
+   python3.14 scan_newsletters.py
    ```
-   This outputs a JSON array of new newsletter emails to stdout and updates `data/scanned.json`. If it exits with an error about missing credentials, remind the user to complete the one-time setup in `newsletter-insights/CLAUDE.md`.
+   This outputs a JSON array of new newsletter emails to stdout and updates `data/scanned.json`. If it exits with an error about missing credentials, remind the user to complete the one-time setup described in `newsletter-insights/CLAUDE.md`.
 
 3. Parse the JSON output. Each item has:
    - `id` — Gmail message ID

@@ -11,7 +11,9 @@
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/tmp/newsletters.json'\\)\\); print\\(len\\(d\\), 'newsletters'\\)\")",
       "Bash(echo \"Done: $\\(python3 -c \"import json; d=json.load\\(open\\('/tmp/newsletters.json'\\)\\); print\\(len\\(d\\), 'newsletters'\\)\"\\)\")",
       "Bash(git check-ignore:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh repo:*)"
     ]
   }
 }
