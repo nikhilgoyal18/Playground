@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm list:*)",
+      "Bash(pip list:*)",
+      "WebSearch",
+      "Bash(mkdir -p /Users/nikhil/Documents/AI/Playground/.claude/commands)",
+      "Bash(mv /Users/nikhil/Documents/AI/Playground/.claude/skills/newsletter-insights.md /Users/nikhil/Documents/AI/Playground/.claude/commands/newsletter-insights.md)",
+      "Bash(python scan_newsletters.py)",
+      "Bash(python3 scan_newsletters.py)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/tmp/newsletters.json'\\)\\); print\\(len\\(d\\), 'newsletters'\\)\")",
+      "Bash(echo \"Done: $\\(python3 -c \"import json; d=json.load\\(open\\('/tmp/newsletters.json'\\)\\); print\\(len\\(d\\), 'newsletters'\\)\"\\)\")",
+      "Bash(git check-ignore:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
