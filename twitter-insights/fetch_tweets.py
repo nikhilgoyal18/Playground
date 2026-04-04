@@ -34,8 +34,10 @@ BEARER_TOKEN = (
     "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs"
     "%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 )
+# HomeLatestTimeline = "Following" tab (only accounts you follow, chronological)
+# HomeTimeline = "For You" tab (algorithmic, includes recommendations & ads)
 HOME_TIMELINE_URL = (
-    "https://twitter.com/i/api/graphql/-X_hcgQzmHGl29-UXxz4sw/HomeTimeline"
+    "https://twitter.com/i/api/graphql/U0cdisy7QFIoTfu3-Okw0A/HomeLatestTimeline"
 )
 FEATURES = {
     "creator_subscriptions_tweet_preview_api_enabled": True,
@@ -183,7 +185,7 @@ async def fetch_new_tweets(auth_token: str, ct0: str, scanned_ids: set) -> list[
     headers = make_headers(ct0)
     variables = {
         "count": MAX_TWEETS,
-        "includePromotedContent": True,
+        "includePromotedContent": False,
         "latestControlAvailable": True,
         "requestContext": "launch",
         "withCommunity": True,
@@ -192,7 +194,7 @@ async def fetch_new_tweets(auth_token: str, ct0: str, scanned_ids: set) -> list[
     payload = {
         "variables": variables,
         "features": FEATURES,
-        "queryId": "-X_hcgQzmHGl29-UXxz4sw",
+        "queryId": "U0cdisy7QFIoTfu3-Okw0A",
     }
 
     async with httpx.AsyncClient(cookies=cookies, follow_redirects=True) as client:
