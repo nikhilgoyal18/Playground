@@ -1,0 +1,13 @@
+{
+  "subreddits": [
+    { "name": "programming", "limit": 30, "sort": "hot" },
+    { "name": "webdev", "limit": 25, "sort": "hot" },
+    { "name": "devops", "limit": 25, "sort": "hot" },
+    { "name": "MachineLearning", "limit": 20, "sort": "hot" },
+    { "name": "SoftwareEngineering", "limit": 20, "sort": "hot" },
+    { "name": "datascience", "limit": 20, "sort": "hot" },
+    { "name": "startups", "limit": 20, "sort": "hot" }
+  ],
+  "top_comments_per_post": 5,
+  "min_score": 10
+}

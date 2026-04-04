@@ -25,7 +25,9 @@
       "Bash(python3 -c \"import twikit; c = twikit.Client\\(\\); print\\([m for m in dir\\(c\\) if 'timeline' in m.lower\\(\\) or 'home' in m.lower\\(\\)]\\)\")",
       "Bash(python3:*)",
       "Bash(pip install:*)",
-      "Bash(pip index:*)"
+      "Bash(pip index:*)",
+      "Skill(reddit-problems)",
+      "Skill(reddit-research)"
     ]
   }
 }
