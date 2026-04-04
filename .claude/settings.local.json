@@ -13,7 +13,19 @@
       "Bash(git check-ignore:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(python3.14 scan_newsletters.py)",
+      "Skill(newsletter-insights)",
+      "Skill(twitter-insights)",
+      "Bash(python3* fetch_tweets.py*)",
+      "Skill(update-config)",
+      "Bash(pip show:*)",
+      "Bash(python3 -c \"import twikit; c = twikit.Client\\(\\); print\\([m for m in dir\\(c\\) if 'timeline' in m.lower\\(\\) or 'home' in m.lower\\(\\)]\\)\")",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(pip index:*)"
     ]
   }
 }

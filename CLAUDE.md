@@ -7,6 +7,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | Project | Folder | Purpose |
 |---------|--------|---------|
 | Newsletter Insights | `newsletter-insights/` | Scan Gmail newsletters and surface key learnings by topic |
+| Twitter Insights | `twitter-insights/` | Scan Twitter home timeline and surface key learnings by topic |
 
 ## Global Conventions
 
@@ -20,6 +21,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | Natural language intent | Skill to invoke |
 |------------------------|-----------------|
 | newsletters, newsletter digest, newsletter scan, latest newsletters, summarize newsletters, "give me today's newsletters" | `newsletter-insights` |
+| twitter, tweet digest, tweet scan, latest tweets, summarize tweets, twitter timeline, "give me today's tweets" | `twitter-insights` |
 
 ## Adding a New Project
 
