@@ -2,7 +2,7 @@
 
 A collection of intelligent automation tools for extracting insights from newsletters, social media, and community forums. Each project is self-contained, designed to help you stay informed and identify opportunities across your digital channels.
 
-**Status:** Active development | **Model:** Claude API (3.5 Sonnet) + Local embeddings | **Last Updated:** 2026-04-04
+**Status:** Active development | **Model:** Claude API (3.5 Sonnet) + Local embeddings + Local LLM (Ollama) | **Last Updated:** 2026-04-05
 
 ---
 
@@ -264,16 +264,21 @@ reddit-insights/
 
 **Status:** ✅ Fully operational | **Setup Time:** ~10 min (first run includes dependency downloads)
 
-Semantic search across all your newsletter and Twitter digests using a local vector database. Ask questions about what you've read, find topics across sources, and get cited answers powered by Claude.
+Semantic search across your newsletter and Twitter digests with intelligent fallback to live web search. Uses local embeddings (ChromaDB), local LLM judge (Ollama), and DuckDuckGo for web results.
 
 ### How It Works
 
-1. **Index** → Automatically processes new summary files from Newsletter Insights and Twitter Insights
-2. **Embed** → Chunks content by topic and embeds using `all-MiniLM-L6-v2` (local, no API key)
-3. **Search** → Retrieves semantically similar chunks from ChromaDB
-4. **Answer** → Generates a cited response using Claude, exclusively from retrieved content
+1. **Auto-index** → Processes new summary files from Newsletter Insights and Twitter Insights (bullet-level chunks for precision)
+2. **Route** → Checks for explicit web keywords (latest, news, stock, breaking, etc.)
+   - If detected: skip to web search
+   - Otherwise: try internal summaries first
+3. **Retrieve** → Embeds query locally with `all-MiniLM-L6-v2` and searches ChromaDB by semantic similarity
+4. **Judge** → LLM validates retrieved chunks match your intent (score 0-10; blocks answer if < 5)
+5. **Fallback** → If internal search finds nothing relevant, automatically tries DuckDuckGo web search
+6. **Answer** → Generates a cited response from either internal summaries or web results
+7. **Log** → Persists full trace to SQLite for later analytics (routing, judge scores, timing, etc.)
 
-All processing is local except for the final Claude API call. No web search, purely retrieval-augmented generation (RAG).
+Most processing is local. Only external API call is Claude for answer generation.
 
 ### One-Time Setup
 
@@ -301,48 +306,71 @@ This scans `newsletter-insights/summaries/` and `twitter-insights/summaries/`, c
 
 ### Usage
 
-Invoke via Claude Code skill:
-```
-/search-news-twitter
-```
-
-Or use the CLI directly:
+Run from the `search-news-twitter/` directory:
 
 ```bash
-# Basic search (both sources)
+# Basic search (tries internal, falls back to web if needed)
 python3 search.py --query "database indexing trade-offs"
 
-# Filter by source
+# Explicit web query (skips internal, goes straight to web)
+python3 search.py --query "latest news about AI regulation"
+python3 search.py --query "today's MSFT stock price"
+
+# Filter internal search to one source (only if internal is attempted)
 python3 search.py --query "AI agent tools" --source twitter
 python3 search.py --query "system design patterns" --source newsletter
 
-# Retrieve more chunks for comprehensive results
+# Retrieve more chunks from internal search
 python3 search.py --query "RAG retrieval" --top-k 8
 
-# Filter by date range
-python3 search.py --query "startup product" --date-from 2026-04-01
-python3 search.py --query "security best practices" --date-from 2026-03-01 --date-to 2026-04-04
+# Filter internal search by date
+python3 search.py --query "startup product strategy" --date-from 2026-04-01
+```
+
+**Keywords that trigger direct web search** (no internal attempt):
+`latest`, `breaking`, `news`, `current`, `stock`, `price`, `today`, `live`, `recently`, `trending`
+
+### Analytics & Logging
+
+Every search is logged to `data/search_logs.db`. Analyze with SQL:
+
+```bash
+# Fallback rate
+sqlite3 data/search_logs.db "SELECT 100.0 * SUM(web_was_fallback) / COUNT(*) as fallback_pct FROM searches WHERE internal_attempted"
+
+# Judge score distribution
+sqlite3 data/search_logs.db "SELECT judge_score, COUNT(*) FROM searches WHERE judge_attempted GROUP BY judge_score"
+
+# Average duration by path
+sqlite3 data/search_logs.db "SELECT CASE WHEN explicit_web_detected THEN 'web' WHEN internal_succeeded THEN 'internal' ELSE 'fallback' END, AVG(duration_ms) FROM searches GROUP BY 1"
 ```
 
 ### How Chunking Works
 
-Each `###` topic heading in a summary file becomes one searchable chunk with metadata:
+Each **bullet point** under a `###` topic heading becomes its own searchable chunk (bullet-level precision for focused retrieval). The topic heading and author are retained as context in the embedding.
+
+Example: "EP209: 12 Claude Code Features" section with 6 bullets → 6 separate chunks, each with the feature as the core signal plus topic context.
+
+Chunk metadata:
 - **source_type** — `newsletter` or `twitter`
 - **date** — From filename (YYYY-MM-DD)
 - **author** — Newsletter sender or Twitter handle
 - **title** — Topic heading
-- **tag** — Category: AI/ML, Engineering, Product, Business, Other
+- **tag** — Category (AI/ML, Engineering, Product, Business, Other)
 
-As you run Newsletter Insights and Twitter Insights over time, new summary files are automatically discovered and indexed on the next search.
+New summary files are automatically discovered and indexed on the next search run.
 
 ### File Structure
 ```
 search-news-twitter/
-├── index.py                   # Indexing pipeline
-├── search.py                  # Search CLI entry point
-├── data/indexed.json          # Tracks indexed summary files
-├── db/chroma/                 # ChromaDB persistent store (auto-created)
-└── requirements.txt           # Python dependencies
+├── index.py                   # Parses summaries, chunks at bullet level, embeds, upserts to ChromaDB
+├── search.py                  # CLI orchestration: routing, internal search, judge, web fallback, logging
+├── web_search.py              # DuckDuckGo integration + Ollama result summarization
+├── logger.py                  # SQLite persistence (no external DB needed)
+├── data/indexed.json          # Tracks which summary files are indexed (prevents re-processing)
+├── data/search_logs.db        # SQLite audit trail (routing decisions, judge scores, durations, etc.)
+├── db/chroma/                 # ChromaDB persistent vector store (auto-created, do not commit)
+└── requirements.txt           # Dependencies: chromadb, sentence-transformers, ollama, ddgs
 ```
 
 ---
