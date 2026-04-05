@@ -28,7 +28,10 @@
       "Bash(pip index:*)",
       "Skill(reddit-problems)",
       "Skill(reddit-research)",
-      "mcp__reddit-mcp-buddy__get_post_details"
+      "mcp__reddit-mcp-buddy__get_post_details",
+      "Bash(python3 index.py*)",
+      "Bash(python3 search.py*)",
+      "Skill(search-news-twitter)"
     ]
   }
 }

@@ -9,6 +9,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | Newsletter Insights | `newsletter-insights/` | Scan Gmail newsletters and surface key learnings by topic |
 | Twitter Insights | `twitter-insights/` | Scan Twitter home timeline and surface key learnings by topic |
 | Reddit Insights | `reddit-insights/` | Extract tech problems from subreddits and identify market opportunities |
+| Search News & Twitter | `search-news-twitter/` | Semantic search across newsletter and Twitter digests using RAG |
 
 ## Global Conventions
 
@@ -25,6 +26,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | twitter, tweet digest, tweet scan, latest tweets, summarize tweets, twitter timeline, "give me today's tweets" | `twitter-insights` |
 | reddit problems, scan reddit, reddit insights, market research reddit, reddit pain points, what problems on reddit, reddit opportunities | `reddit-problems` |
 | research reddit problems, deep dive reddit, analyze reddit opportunities, find solutions for reddit problems | `reddit-research` |
+| search my digests, search newsletters and twitter, find articles about, what have I read about, search news twitter, look up in my summaries, have I read anything about | `search-news-twitter` |
 
 ## Adding a New Project
 
