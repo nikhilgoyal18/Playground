@@ -1,0 +1,51 @@
+{
+  "generated_date": "2026-04-04",
+  "schema_version": 2,
+  "problems": [
+    {
+      "rank": 1,
+      "id": "prob_001",
+      "title": "AI Spam Is Destroying Founder Communities",
+      "category": "Communication",
+      "intensity": "high",
+      "composite_score": 390,
+      "researched": false
+    },
+    {
+      "rank": 2,
+      "id": "prob_002",
+      "title": "No Quality Bar for Vibe-Coded Apps",
+      "category": "Developer Tools",
+      "intensity": "high",
+      "composite_score": 351,
+      "researched": false
+    },
+    {
+      "rank": 3,
+      "id": "prob_003",
+      "title": "Solo Founders Launch With No Distribution Strategy",
+      "category": "Business/Finance",
+      "intensity": "medium",
+      "composite_score": 271,
+      "researched": false
+    },
+    {
+      "rank": 4,
+      "id": "prob_004",
+      "title": "B2B SaaS Buying Process Is Unnecessarily Friction-Heavy",
+      "category": "Business/Finance",
+      "intensity": "medium",
+      "composite_score": 174,
+      "researched": false
+    },
+    {
+      "rank": 5,
+      "id": "prob_005",
+      "title": "SaaS Content Pages Silently Fail to Get Indexed",
+      "category": "Developer Tools",
+      "intensity": "medium",
+      "composite_score": 98,
+      "researched": false
+    }
+  ]
+}

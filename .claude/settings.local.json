@@ -27,7 +27,8 @@
       "Bash(pip install:*)",
       "Bash(pip index:*)",
       "Skill(reddit-problems)",
-      "Skill(reddit-research)"
+      "Skill(reddit-research)",
+      "mcp__reddit-mcp-buddy__get_post_details"
     ]
   }
 }

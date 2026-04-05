@@ -64,7 +64,7 @@ For each problem, determine:
 
 ### 4. Write the research report
 
-Write to `reddit-insights/summaries/YYYY-MM-DD-research.md` (use today's date):
+Write to `reddit-insights/problems/YYYY-MM-DD-research.md` (use today's date):
 
 ```markdown
 # Reddit Market Research — YYYY-MM-DD

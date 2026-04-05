@@ -45,7 +45,7 @@ Edit `data/subreddits.json` to add the subreddits you want to monitor:
 ```
 
 Fetches posts from configured subreddits, extracts tech/software problems, scores and ranks them, and writes:
-- `summaries/YYYY-MM-DD-problems.md` — human-readable ranked list
+- `problems/YYYY-MM-DD-problems.md` — human-readable ranked list
 - `data/problems.json` — structured cache for Stage 4-5
 
 ### Stage 4-5: Market Research
@@ -55,7 +55,7 @@ Fetches posts from configured subreddits, extracts tech/software problems, score
 ```
 
 Reads `data/problems.json`, searches for existing solutions, and writes:
-- `summaries/YYYY-MM-DD-research.md` — market research report with opportunity scores
+- `problems/YYYY-MM-DD-research.md` — market research report with opportunity scores
 
 You can target specific problems: "research problems 1, 3, 5"
 
@@ -68,7 +68,7 @@ reddit-insights/
 │   ├── scanned.json            # Processed post IDs (prevents re-scanning)
 │   ├── subreddits.json         # Subreddit configuration
 │   └── problems.json           # Extracted problems cache (written by /reddit-problems)
-└── summaries/
+└── problems/
     ├── YYYY-MM-DD-problems.md  # Ranked problem list
     └── YYYY-MM-DD-research.md  # Market research report
 ```

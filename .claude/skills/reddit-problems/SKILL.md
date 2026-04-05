@@ -86,7 +86,7 @@ Rank problems by `composite_score` descending. Number them 1–N.
 
 ### 8. Write outputs
 
-**Write** the ranked problem list to `reddit-insights/summaries/YYYY-MM-DD-problems.md` (use today's date):
+**Write** the ranked problem list to `reddit-insights/problems/YYYY-MM-DD-problems.md` (use today's date):
 
 ```markdown
 # Reddit Problem Scan — YYYY-MM-DD
@@ -109,20 +109,18 @@ Rank problems by `composite_score` descending. Number them 1–N.
 ### #2 — ...
 ```
 
-**Write** the structured cache to `reddit-insights/data/problems.json`:
+**Write** a lightweight research index to `reddit-insights/data/problems.json` — only the fields needed by `/reddit-research` (full problem detail lives in the markdown):
 
 ```json
 {
   "generated_date": "YYYY-MM-DD",
-  "schema_version": 1,
+  "schema_version": 2,
   "problems": [
     {
       "rank": 1,
       "id": "prob_001",
+      "title": "Short problem title",
       "category": "Developer Tools",
-      "problem_statement": "...",
-      "evidence": ["quote1", "quote2"],
-      "source_posts": [{ "id": "abc123", "subreddit": "programming", "score": 847, "num_comments": 124 }],
       "intensity": "high",
       "composite_score": 1247,
       "researched": false
