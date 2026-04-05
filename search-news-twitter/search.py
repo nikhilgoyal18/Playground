@@ -19,8 +19,9 @@ from index import get_collection, get_model, index_new_files
 OLLAMA_MODEL = "llama3.2"
 
 # Cosine distance threshold — above this score the result is considered not relevant.
-# Cosine distance ranges 0 (identical) to 2 (opposite). 0.7 ≈ similarity < 0.3.
-RELEVANCE_THRESHOLD = 0.7
+# Cosine distance ranges 0 (identical) to 2 (opposite). 0.8 ≈ similarity < 0.2.
+# Raised from 0.7 to accommodate bullet-level chunks, which are more focused.
+RELEVANCE_THRESHOLD = 0.8
 
 # Intent judge: below this score, skip answer generation
 JUDGE_SCORE_THRESHOLD = 5

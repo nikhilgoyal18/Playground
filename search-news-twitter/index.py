@@ -102,27 +102,28 @@ def parse_summary_file(filepath, source_type, date_str, rel_path):
     def flush_chunk():
         nonlocal chunk_index
         if current_title and current_bullets:
-            text = (
-                f"{current_title}\n"
-                f"{current_author or ''}\n"
-                + "\n".join(f"- {b}" for b in current_bullets)
-            )
-            doc_id = f"{rel_path}::{chunk_index}"
-            chunks.append(
-                {
-                    "id": doc_id,
-                    "text": text,
-                    "metadata": {
-                        "source_type": source_type,
-                        "date": date_str,
-                        "author": current_author or "",
-                        "title": current_title,
-                        "tag": current_tag,
-                        "file": rel_path,
-                    },
-                }
-            )
-            chunk_index += 1
+            for bullet in current_bullets:
+                text = (
+                    f"{current_title}\n"
+                    f"{current_author or ''}\n"
+                    f"- {bullet}"
+                )
+                doc_id = f"{rel_path}::{chunk_index}"
+                chunks.append(
+                    {
+                        "id": doc_id,
+                        "text": text,
+                        "metadata": {
+                            "source_type": source_type,
+                            "date": date_str,
+                            "author": current_author or "",
+                            "title": current_title,
+                            "tag": current_tag,
+                            "file": rel_path,
+                        },
+                    }
+                )
+                chunk_index += 1
 
     for line in lines:
         if line.startswith("## "):
