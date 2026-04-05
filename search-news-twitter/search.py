@@ -12,11 +12,14 @@ Usage:
 
 import argparse
 import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import ollama
 
 from index import get_collection, get_model, index_new_files
+from logger import init_db, save_log
 from web_search import web_search
 
 OLLAMA_MODEL = "llama3.2"
@@ -106,6 +109,7 @@ def judge_retrieval(query, docs, metas):
             "retrieval_quality": "unknown",
             "reasoning": "Judge parse error — falling back to web.",
             "recommendation": "no_data",
+            "_parse_error": True,
         }
 
 
@@ -124,10 +128,13 @@ def build_where_filter(source, date_from):
         return {"$and": conditions}
 
 
-def search(query, source=None, top_k=5, date_from=None):
+def search(query, source=None, top_k=5, date_from=None, log=None):
     """
     Search internal ChromaDB summaries. Returns True if a relevant answer was found
     and printed, False if nothing useful was found (signals caller to try web fallback).
+
+    Args:
+        log: Optional dict for recording the search session. Modified in-place.
     """
     collection = get_collection()
 
@@ -150,8 +157,16 @@ def search(query, source=None, top_k=5, date_from=None):
     metas = results["metadatas"][0]
     distances = results["distances"][0]
 
+    if log is not None:
+        log["internal_attempted"] = True
+        log["top_chunk_distance"] = distances[0] if distances else None
+
     if not docs or distances[0] > RELEVANCE_THRESHOLD:
+        if log is not None:
+            log["chunks_passed_threshold"] = False
         return False
+    if log is not None:
+        log["chunks_passed_threshold"] = True
 
     # Intent judge — semantic check before answer generation
     verdict = judge_retrieval(query, docs, metas)
@@ -163,6 +178,14 @@ def search(query, source=None, top_k=5, date_from=None):
     )
     print(f"  Intent understood: {verdict.get('intent_understood', '')}")
     print(f"  Reasoning: {verdict.get('reasoning', '')}\n")
+
+    if log is not None:
+        log["judge_attempted"] = True
+        log["judge_score"] = verdict.get("intent_score")
+        log["judge_quality"] = verdict.get("retrieval_quality")
+        log["judge_intent_understood"] = verdict.get("intent_understood")
+        log["judge_reasoning"] = verdict.get("reasoning")
+        log["judge_parse_error"] = verdict.get("_parse_error", False)
 
     if score < JUDGE_SCORE_THRESHOLD:
         return False
@@ -194,9 +217,19 @@ def search(query, source=None, top_k=5, date_from=None):
         raise
 
     answer = response.message.content
+    if log is not None:
+        log["internal_answer_generated"] = True
+
     # If the LLM itself says it has no relevant content, treat as a miss
     if "don't have enough relevant content" in answer.lower():
+        if log is not None:
+            log["internal_no_content_response"] = True
         return False
+
+    if log is not None:
+        log["internal_no_content_response"] = False
+        log["internal_succeeded"] = True
+        log["final_output"] = answer
 
     print(f"\n{answer}\n")
     print("---")
@@ -224,28 +257,58 @@ def main():
     )
     args = parser.parse_args()
 
-    # Auto-index any new summary files before searching
-    index_new_files(verbose=True)
+    # Logging setup
+    try:
+        init_db()
+    except Exception:
+        pass  # If DB init fails, logging is silently disabled
 
-    # If query explicitly asks for live/current data, skip straight to web
-    if is_explicit_web_query(args.query):
-        print("Explicit web query detected → skipping internal search\n")
-        web_search(args.query)
-        return
+    log = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "query": args.query,
+    }
+    start_ms = time.monotonic()
 
-    # Otherwise try internal summaries first
-    print("Searching internal summaries...")
-    found = search(
-        query=args.query,
-        source=args.source,
-        top_k=args.top_k,
-        date_from=args.date_from,
-    )
+    try:
+        # Auto-index any new summary files before searching
+        index_new_files(verbose=True)
 
-    # If nothing relevant found internally, fall back to web
-    if not found:
-        print("Nothing relevant found in internal summaries → falling back to web search\n")
-        web_search(args.query)
+        # If query explicitly asks for live/current data, skip straight to web
+        if is_explicit_web_query(args.query):
+            print("Explicit web query detected → skipping internal search\n")
+            log["explicit_web_detected"] = True
+            log["web_attempted"] = True
+            log["web_was_fallback"] = False
+            web_search(args.query, log=log)
+            return
+
+        # Otherwise try internal summaries first
+        print("Searching internal summaries...")
+        found = search(
+            query=args.query,
+            source=args.source,
+            top_k=args.top_k,
+            date_from=args.date_from,
+            log=log,
+        )
+
+        # If nothing relevant found internally, fall back to web
+        if not found:
+            print("Nothing relevant found in internal summaries → falling back to web search\n")
+            log["web_attempted"] = True
+            log["web_was_fallback"] = True
+            web_search(args.query, log=log)
+
+    except Exception as e:
+        log["error"] = str(e)
+        raise  # re-raise so the user still sees the traceback
+
+    finally:
+        log["duration_ms"] = int((time.monotonic() - start_ms) * 1000)
+        try:
+            save_log(log)
+        except Exception:
+            pass  # Logging must never crash the main flow
 
 
 if __name__ == "__main__":

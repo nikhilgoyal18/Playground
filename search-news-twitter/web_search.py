@@ -15,23 +15,33 @@ WEB_SYSTEM_PROMPT = """You are a web search assistant. Answer the user's questio
 - Do not fabricate information not present in the results."""
 
 
-def web_search(query, max_results=5):
+def web_search(query, max_results=5, log=None):
     """
     Search the web using DuckDuckGo and summarize results with Ollama.
 
     Args:
         query: User's search query
         max_results: Number of web results to retrieve (default: 5)
+        log: Optional dict for recording the search session. Modified in-place.
     """
     try:
         results = list(DDGS().text(query, max_results=max_results))
     except Exception as e:
+        if log is not None:
+            log["web_succeeded"] = False
+            log["web_result_count"] = 0
         print(f"Web search failed: {e}")
         return
 
     if not results:
+        if log is not None:
+            log["web_succeeded"] = False
+            log["web_result_count"] = 0
         print("No web search results found.")
         return
+
+    if log is not None:
+        log["web_result_count"] = len(results)
 
     # Build context blocks with [Source N] labels
     context_blocks = []
@@ -51,12 +61,19 @@ def web_search(query, max_results=5):
             ],
         )
     except Exception as e:
+        if log is not None:
+            log["web_succeeded"] = False
         if "connection" in str(e).lower():
             print("Ollama is not running. Start it with: ollama serve")
             return
         raise
 
-    print(f"\n{response.message.content}\n")
+    answer = response.message.content
+    if log is not None:
+        log["web_succeeded"] = True
+        log["final_output"] = answer
+
+    print(f"\n{answer}\n")
     print("---")
     print("Sources:")
     for i, result in enumerate(results, start=1):
