@@ -1,11 +1,13 @@
 """
 Semantic search across newsletter and Twitter summaries using RAG.
-Auto-indexes new summary files before each query.
+Falls back to live web search (DuckDuckGo) if nothing relevant is found internally.
+Jumps straight to web search if the query explicitly asks for current/live data.
 
 Usage:
     python3 search.py --query "database performance trade-offs"
     python3 search.py --query "RAG systems" --source newsletter --top-k 8
     python3 search.py --query "AI tools" --source twitter --date-from 2026-04-01
+    python3 search.py --query "latest MSFT news"
 """
 
 import argparse
@@ -27,33 +29,13 @@ RELEVANCE_THRESHOLD = 0.8
 # Intent judge: below this score, skip answer generation
 JUDGE_SCORE_THRESHOLD = 5
 
-ROUTING_JUDGE_PROMPT = """You are a routing quality judge. A router has assigned a user query to one of two agents:
-- "internal": searches the user's personal newsletter and Twitter digest summaries
-- "web": searches the live internet for current/real-time information
-
-Evaluate TWO things:
-1. The query is coherent and has a clear, understandable intent
-2. The routing decision is appropriate for that intent
-
-Respond with ONLY a single digit:
-- "1" if both conditions are met (query is clear AND routing is sensible)
-- "0" if either condition fails (query is unclear/gibberish OR routing is obviously wrong)
-
-Routing is sensible when:
-- "web" is used for: latest news, current events, live prices, recent/breaking topics
-- "internal" is used for: what the user has read, past newsletter/Twitter content, general tech topics"""
-
-ROUTER_PROMPT = """You are a query router. Decide whether to answer using:
-- "internal": the user's personal newsletter and Twitter digest summaries
-- "web": live internet search for current/real-time information
-
-Respond with ONLY the word: internal  OR  web
-
-Choose "web" if the query asks about: latest news, current events, live prices, recent happenings, today's updates, breaking news, or anything time-sensitive.
-
-Choose "internal" if the query asks about: what the user has read, topics from newsletters/Twitter, or general knowledge topics likely covered in tech digests.
-
-Default to "internal" when unclear."""
+# Keywords that signal the user explicitly wants live/current web data.
+# Queries containing these skip internal search and go straight to the web.
+EXPLICIT_WEB_KEYWORDS = {
+    "latest", "last week", "last month", "last year", "yesterday", "today",
+    "this week", "this month", "breaking", "news", "current", "stock", "price",
+    "right now", "live", "recently", "just announced", "new release", "trending",
+}
 
 JUDGE_PROMPT = """You are a retrieval quality judge for a personal RAG knowledge base.
 
@@ -86,46 +68,10 @@ Answer the user's question using ONLY the provided context chunks below.
 - Do not fabricate names, numbers, or claims not present in the context."""
 
 
-def route_query(query):
-    """
-    Use LLM to decide whether to search internal summaries or the web.
-    Returns "internal" or "web".
-    """
-    try:
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": ROUTER_PROMPT},
-                {"role": "user", "content": query},
-            ],
-        )
-        route = response.message.content.strip().lower()
-        if route in ("internal", "web"):
-            return route
-        return "internal"  # default on unexpected output
-    except Exception:
-        # On any error, default to internal
-        return "internal"
-
-
-def judge_routing(query, route):
-    """
-    Binary judge: returns 1 if routing is sensible and query is clear, 0 otherwise.
-    """
-    try:
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": ROUTING_JUDGE_PROMPT},
-                {"role": "user", "content": f"Query: {query}\nRouting decision: {route}"},
-            ],
-        )
-        result = response.message.content.strip()
-        if result in ("0", "1"):
-            return int(result)
-        return 1  # default pass on unexpected output
-    except Exception:
-        return 1  # default pass on error — don't block on judge failures
+def is_explicit_web_query(query):
+    """Return True if the query contains keywords signalling a need for live/current data."""
+    query_lower = query.lower()
+    return any(kw in query_lower for kw in EXPLICIT_WEB_KEYWORDS)
 
 
 def judge_retrieval(query, docs, metas):
@@ -179,11 +125,15 @@ def build_where_filter(source, date_from):
 
 
 def search(query, source=None, top_k=5, date_from=None):
+    """
+    Search internal ChromaDB summaries. Returns True if a relevant answer was found
+    and printed, False if nothing useful was found (signals caller to try web fallback).
+    """
     collection = get_collection()
 
     if collection.count() == 0:
         print("Index is empty. Run `python3 index.py` first.")
-        return
+        return False
 
     model = get_model()
     query_embedding = model.encode([query], show_progress_bar=False).tolist()[0]
@@ -201,11 +151,7 @@ def search(query, source=None, top_k=5, date_from=None):
     distances = results["distances"][0]
 
     if not docs or distances[0] > RELEVANCE_THRESHOLD:
-        print(
-            "No sufficiently relevant content found in the indexed summaries for that query.\n"
-            "Try rephrasing, or run the newsletter/twitter digest tools to add more content first."
-        )
-        return
+        return False
 
     # Intent judge — semantic check before answer generation
     verdict = judge_retrieval(query, docs, metas)
@@ -219,9 +165,7 @@ def search(query, source=None, top_k=5, date_from=None):
     print(f"  Reasoning: {verdict.get('reasoning', '')}\n")
 
     if score < JUDGE_SCORE_THRESHOLD:
-        print("Answer generation skipped — retrieval quality too low to produce a reliable answer.")
-        print("Try rephrasing your query or adding more content with /newsletter-insights or /twitter-insights.")
-        return
+        return False
 
     # Build context blocks with [Source N] labels
     context_blocks = []
@@ -246,7 +190,7 @@ def search(query, source=None, top_k=5, date_from=None):
     except Exception as e:
         if "connection" in str(e).lower():
             print("Ollama is not running. Start it with: ollama serve")
-            return
+            return False
         raise
 
     print(f"\n{response.message.content}\n")
@@ -256,6 +200,7 @@ def search(query, source=None, top_k=5, date_from=None):
         src_label = meta["source_type"].upper().ljust(10)
         tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
         print(f"  [{i}] {src_label} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
+    return True
 
 
 def main():
@@ -277,27 +222,25 @@ def main():
     # Auto-index any new summary files before searching
     index_new_files(verbose=True)
 
-    # Route query to internal or web search
-    route = route_query(args.query)
-    print(f"Router → {route.upper()}")
-
-    # Judge if routing decision is sensible and query is coherent
-    routing_score = judge_routing(args.query, route)
-    print(f"Routing Judge → {'PASS' if routing_score == 1 else 'FAIL'}\n")
-
-    if routing_score == 0:
-        print("I didn't understand the query or context. Please try rephrasing your question.")
+    # If query explicitly asks for live/current data, skip straight to web
+    if is_explicit_web_query(args.query):
+        print("Explicit web query detected → skipping internal search\n")
+        web_search(args.query)
         return
 
-    if route == "web":
+    # Otherwise try internal summaries first
+    print("Searching internal summaries...")
+    found = search(
+        query=args.query,
+        source=args.source,
+        top_k=args.top_k,
+        date_from=args.date_from,
+    )
+
+    # If nothing relevant found internally, fall back to web
+    if not found:
+        print("Nothing relevant found in internal summaries → falling back to web search\n")
         web_search(args.query)
-    else:
-        search(
-            query=args.query,
-            source=args.source,
-            top_k=args.top_k,
-            date_from=args.date_from,
-        )
 
 
 if __name__ == "__main__":
