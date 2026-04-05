@@ -27,6 +27,22 @@ RELEVANCE_THRESHOLD = 0.8
 # Intent judge: below this score, skip answer generation
 JUDGE_SCORE_THRESHOLD = 5
 
+ROUTING_JUDGE_PROMPT = """You are a routing quality judge. A router has assigned a user query to one of two agents:
+- "internal": searches the user's personal newsletter and Twitter digest summaries
+- "web": searches the live internet for current/real-time information
+
+Evaluate TWO things:
+1. The query is coherent and has a clear, understandable intent
+2. The routing decision is appropriate for that intent
+
+Respond with ONLY a single digit:
+- "1" if both conditions are met (query is clear AND routing is sensible)
+- "0" if either condition fails (query is unclear/gibberish OR routing is obviously wrong)
+
+Routing is sensible when:
+- "web" is used for: latest news, current events, live prices, recent/breaking topics
+- "internal" is used for: what the user has read, past newsletter/Twitter content, general tech topics"""
+
 ROUTER_PROMPT = """You are a query router. Decide whether to answer using:
 - "internal": the user's personal newsletter and Twitter digest summaries
 - "web": live internet search for current/real-time information
@@ -90,6 +106,26 @@ def route_query(query):
     except Exception:
         # On any error, default to internal
         return "internal"
+
+
+def judge_routing(query, route):
+    """
+    Binary judge: returns 1 if routing is sensible and query is clear, 0 otherwise.
+    """
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": ROUTING_JUDGE_PROMPT},
+                {"role": "user", "content": f"Query: {query}\nRouting decision: {route}"},
+            ],
+        )
+        result = response.message.content.strip()
+        if result in ("0", "1"):
+            return int(result)
+        return 1  # default pass on unexpected output
+    except Exception:
+        return 1  # default pass on error — don't block on judge failures
 
 
 def judge_retrieval(query, docs, metas):
@@ -243,7 +279,15 @@ def main():
 
     # Route query to internal or web search
     route = route_query(args.query)
-    print(f"Router → {route.upper()}\n")
+    print(f"Router → {route.upper()}")
+
+    # Judge if routing decision is sensible and query is coherent
+    routing_score = judge_routing(args.query, route)
+    print(f"Routing Judge → {'PASS' if routing_score == 1 else 'FAIL'}\n")
+
+    if routing_score == 0:
+        print("I didn't understand the query or context. Please try rephrasing your question.")
+        return
 
     if route == "web":
         web_search(args.query)
