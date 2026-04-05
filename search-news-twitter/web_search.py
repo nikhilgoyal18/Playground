@@ -15,33 +15,27 @@ WEB_SYSTEM_PROMPT = """You are a web search assistant. Answer the user's questio
 - Do not fabricate information not present in the results."""
 
 
-def web_search(query, max_results=5, log=None):
+def web_search(query, max_results=5):
     """
     Search the web using DuckDuckGo and summarize results with Ollama.
+    Returns the generated answer as a string.
 
     Args:
         query: User's search query
         max_results: Number of web results to retrieve (default: 5)
-        log: Optional dict for recording the search session. Modified in-place.
+
+    Returns:
+        str: Generated answer from web search results
     """
     try:
         results = list(DDGS().text(query, max_results=max_results))
     except Exception as e:
-        if log is not None:
-            log["web_succeeded"] = False
-            log["web_result_count"] = 0
         print(f"Web search failed: {e}")
-        return
+        return None
 
     if not results:
-        if log is not None:
-            log["web_succeeded"] = False
-            log["web_result_count"] = 0
         print("No web search results found.")
-        return
-
-    if log is not None:
-        log["web_result_count"] = len(results)
+        return None
 
     # Build context blocks with [Source N] labels
     context_blocks = []
@@ -61,21 +55,19 @@ def web_search(query, max_results=5, log=None):
             ],
         )
     except Exception as e:
-        if log is not None:
-            log["web_succeeded"] = False
         if "connection" in str(e).lower():
             print("Ollama is not running. Start it with: ollama serve")
-            return
+            return None
         raise
 
     answer = response.message.content
-    if log is not None:
-        log["web_succeeded"] = True
-        log["final_output"] = answer
 
+    # Print for user visibility
     print(f"\n{answer}\n")
     print("---")
     print("Sources:")
     for i, result in enumerate(results, start=1):
         print(f"  [{i}] {result['title']}")
         print(f"      {result['href']}")
+
+    return answer

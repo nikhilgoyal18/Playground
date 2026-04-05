@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS searches (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp                   TEXT NOT NULL,
     query                       TEXT NOT NULL,
+    normalized_query            TEXT,
     duration_ms                 INTEGER,
 
     explicit_web_detected       INTEGER NOT NULL DEFAULT 0,
@@ -44,7 +45,7 @@ CREATE TABLE IF NOT EXISTS searches (
 
 INSERT_SQL = """
 INSERT INTO searches (
-    timestamp, query, duration_ms,
+    timestamp, query, normalized_query, duration_ms,
     explicit_web_detected,
     internal_attempted, top_chunk_distance, chunks_passed_threshold,
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
@@ -53,7 +54,7 @@ INSERT INTO searches (
     web_attempted, web_was_fallback, web_result_count, web_succeeded,
     final_output, error
 ) VALUES (
-    :timestamp, :query, :duration_ms,
+    :timestamp, :query, :normalized_query, :duration_ms,
     :explicit_web_detected,
     :internal_attempted, :top_chunk_distance, :chunks_passed_threshold,
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
@@ -82,6 +83,7 @@ def save_log(log: dict):
     row = {
         "timestamp": log.get("timestamp"),
         "query": log.get("query"),
+        "normalized_query": log.get("normalized_query"),
         "duration_ms": log.get("duration_ms"),
         "explicit_web_detected": int(log.get("explicit_web_detected", False)),
         "internal_attempted": int(log.get("internal_attempted", False)),

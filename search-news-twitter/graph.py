@@ -1,0 +1,362 @@
+"""
+LangGraph-based orchestration for semantic search with internal/web fallback.
+Replaces manual orchestration in search.py with explicit graph topology,
+typed state, and per-node retry policies.
+
+Graph flow:
+  query_normalize → index_sync → route → [internal_retrieve → judge_gate → generate_answer] or [web_search]
+"""
+
+import json
+from typing import TypedDict, Optional, List, Literal
+from typing_extensions import Annotated
+import operator
+
+import ollama
+from langgraph.graph import StateGraph, START, END
+from langgraph.types import RetryPolicy
+
+from index import get_collection, get_model, index_new_files
+from web_search import web_search
+
+OLLAMA_MODEL = "llama3.2"
+RELEVANCE_THRESHOLD = 0.8
+JUDGE_SCORE_THRESHOLD = 5
+
+EXPLICIT_WEB_KEYWORDS = {
+    "latest", "last week", "last month", "last year", "yesterday", "today",
+    "this week", "this month", "breaking", "news", "current", "stock", "price",
+    "right now", "live", "recently", "just announced", "new release", "trending",
+}
+
+JUDGE_PROMPT = """You are a retrieval quality judge for a personal RAG knowledge base.
+
+The knowledge base contains ONLY newsletter digests and Twitter digests. It does NOT contain general web knowledge, current events outside those digests, or any other sources.
+
+Given a user query and the titles + content of the top retrieved chunks, evaluate whether the retrieval correctly captured the user's intent.
+
+IMPORTANT: Respond with ONLY valid JSON, no other text. All string values MUST be quoted with double quotes.
+
+Example:
+{
+  "intent_score": 8,
+  "intent_understood": "The user wants to know about AI features",
+  "retrieval_quality": "good",
+  "reasoning": "Retrieved chunks directly address the user's query",
+  "recommendation": "proceed"
+}
+
+Scoring:
+- 8-10: Retrieved chunks directly and fully address the query intent
+- 5-7: Partial match — some chunks relevant, others tangential
+- 3-4: Weak match — chunks loosely related but miss the core intent
+- 0-2: Poor match — chunks off-topic, or user is asking about something not in this knowledge base"""
+
+SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
+
+Answer the user's question using ONLY the provided context chunks below.
+- Do not use any knowledge outside the context.
+- If the context does not contain enough information to answer, say: "I don't have enough relevant content in the indexed summaries to answer this question."
+- Cite your sources inline using [Source N] notation matching the context headers.
+- Be concise. Synthesize across sources when multiple chunks are relevant.
+- Do not fabricate names, numbers, or claims not present in the context."""
+
+
+class SearchState(TypedDict):
+    """Shared state across all graph nodes."""
+    # Input
+    query: str
+    normalized_query: str
+    source: Optional[str]
+    top_k: int
+    date_from: Optional[str]
+
+    # Routing
+    explicit_web_detected: bool
+
+    # Internal retrieval
+    docs: List[str]
+    metas: List[dict]
+    distances: List[float]
+    chunks_passed_threshold: Optional[bool]
+
+    # Judge
+    judge_score: Optional[int]
+    judge_quality: Optional[str]
+    judge_intent_understood: Optional[str]
+    judge_reasoning: Optional[str]
+    judge_parse_error: bool
+
+    # Answer
+    internal_answer: Optional[str]
+    internal_succeeded: bool
+    internal_no_content_response: bool
+    web_answer: Optional[str]
+    web_result_count: int
+    web_succeeded: bool
+    web_was_fallback: bool
+
+    # Audit
+    final_output: Optional[str]
+    errors: Annotated[List[str], operator.add]
+    duration_ms: Optional[int]
+    timestamp: str
+
+
+# ============================================================================
+# Node functions
+# ============================================================================
+
+def query_normalize(state: SearchState) -> dict:
+    """Fix typos in the query before anything else."""
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Fix typos in the user's search query. Return ONLY the corrected query, "
+                        "no explanation, no quotes, no punctuation changes."
+                    ),
+                },
+                {"role": "user", "content": state["query"]},
+            ],
+        )
+        normalized = response.message.content.strip()
+        return {"normalized_query": normalized or state["query"]}
+    except Exception as e:
+        return {"normalized_query": state["query"], "errors": [f"query_normalize error: {str(e)}"]}
+
+
+def index_sync(state: SearchState) -> dict:
+    """Index any new summary files before searching."""
+    try:
+        index_new_files(verbose=False)
+        return {}
+    except Exception as e:
+        return {"errors": [f"index_sync error: {str(e)}"]}
+
+
+def detect_explicit_web(state: SearchState) -> dict:
+    """Detect explicit web keywords and update state."""
+    query_lower = state["normalized_query"].lower()
+    explicit_web = any(kw in query_lower for kw in EXPLICIT_WEB_KEYWORDS)
+    return {"explicit_web_detected": explicit_web}
+
+
+def route_explicit_web(state: SearchState) -> Literal["web_search", "internal_retrieve"]:
+    """Route based on explicit web keywords."""
+    if state.get("explicit_web_detected"):
+        return "web_search"
+    return "internal_retrieve"
+
+
+def internal_retrieve(state: SearchState) -> dict:
+    """Embed query and retrieve chunks from ChromaDB."""
+    try:
+        collection = get_collection()
+
+        if collection.count() == 0:
+            return {
+                "docs": [],
+                "metas": [],
+                "distances": [],
+                "chunks_passed_threshold": False,
+            }
+
+        model = get_model()
+        query_embedding = model.encode([state["normalized_query"]], show_progress_bar=False).tolist()[0]
+
+        # Build where filter
+        where = None
+        conditions = []
+        if state.get("source"):
+            conditions.append({"source_type": state["source"]})
+        if state.get("date_from"):
+            conditions.append({"date": {"$gte": state["date_from"]}})
+        if len(conditions) == 1:
+            where = conditions[0]
+        elif len(conditions) > 1:
+            where = {"$and": conditions}
+
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=min(state["top_k"], collection.count()),
+            where=where,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        docs = results["documents"][0] if results["documents"] else []
+        metas = results["metadatas"][0] if results["metadatas"] else []
+        distances = results["distances"][0] if results["distances"] else []
+
+        # Check threshold
+        passed = bool(docs and distances and distances[0] <= RELEVANCE_THRESHOLD)
+
+        return {
+            "docs": docs,
+            "metas": metas,
+            "distances": distances,
+            "chunks_passed_threshold": passed,
+        }
+    except Exception as e:
+        return {
+            "docs": [],
+            "metas": [],
+            "distances": [],
+            "chunks_passed_threshold": False,
+            "errors": [f"internal_retrieve error: {str(e)}"],
+        }
+
+
+def judge_gate(state: SearchState) -> dict:
+    """LLM intent judge — raises on parse error to trigger RetryPolicy."""
+    chunk_summaries = []
+    for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
+        first_line = doc.split("\n")[0]
+        chunk_summaries.append(
+            f"[Chunk {i}] {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{first_line}"
+        )
+    chunks_text = "\n\n".join(chunk_summaries)
+    user_msg = f"User query: {state['normalized_query']}\n\nRetrieved chunks:\n\n{chunks_text}"
+
+    response = ollama.chat(
+        model=OLLAMA_MODEL,
+        messages=[
+            {"role": "system", "content": JUDGE_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+    )
+    raw = response.message.content.strip()
+
+    # Strip markdown code fences if present
+    if "```" in raw:
+        parts = raw.split("```")
+        if len(parts) >= 2:
+            raw = parts[1].lstrip("json").strip()
+
+    # RAISES on invalid JSON — triggers RetryPolicy
+    verdict = json.loads(raw)
+
+    return {
+        "judge_score": verdict["intent_score"],
+        "judge_quality": verdict["retrieval_quality"],
+        "judge_intent_understood": verdict["intent_understood"],
+        "judge_reasoning": verdict["reasoning"],
+        "judge_parse_error": False,
+    }
+
+
+def generate_answer(state: SearchState) -> dict:
+    """Generate answer from internal chunks."""
+    # Build context blocks
+    context_blocks = []
+    for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
+        tag_part = f" | {meta['tag']}" if meta.get("tag") else ""
+        header = (
+            f"[Source {i}] {meta['source_type'].upper()} | "
+            f"{meta['date']} | {meta['author']} | {meta['title']}{tag_part}"
+        )
+        context_blocks.append(f"{header}\n{doc}")
+
+    context_text = "\n\n---\n\n".join(context_blocks)
+
+    response = ollama.chat(
+        model=OLLAMA_MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Context:\n\n{context_text}\n\n---\n\nQuestion: {state['normalized_query']}"},
+        ],
+    )
+
+    answer = response.message.content
+
+    # Check if LLM says it has no content
+    no_content = "don't have enough relevant content" in answer.lower()
+
+    return {
+        "internal_answer": answer,
+        "internal_answer_generated": True,
+        "internal_no_content_response": no_content,
+        "internal_succeeded": not no_content,
+        "final_output": answer if not no_content else None,
+    }
+
+
+def generate_web_answer(state: SearchState) -> dict:
+    """Generate answer from web search."""
+    answer = web_search(state["normalized_query"], max_results=5)
+    return {
+        "web_answer": answer,
+        "web_succeeded": True,
+        "final_output": answer,
+    }
+
+
+# ============================================================================
+# Conditional routing functions
+# ============================================================================
+
+def route_after_retrieval(state: SearchState) -> Literal["web_search", "judge_gate"]:
+    """Route based on retrieval quality."""
+    if not state.get("chunks_passed_threshold"):
+        return "web_search"
+    return "judge_gate"
+
+
+def route_after_judge(state: SearchState) -> Literal["web_search", "generate_answer"]:
+    """Route based on judge score."""
+    score = state.get("judge_score") or 0
+    if score < JUDGE_SCORE_THRESHOLD:
+        return "web_search"
+    return "generate_answer"
+
+
+def route_after_generate(state: SearchState) -> Literal["web_search", Literal[END]]:
+    """Route based on whether answer generation succeeded."""
+    if state.get("internal_no_content_response"):
+        return "web_search"
+    return END
+
+
+# ============================================================================
+# Graph construction
+# ============================================================================
+
+def build_graph():
+    """Build and compile the search graph."""
+    graph = StateGraph(SearchState)
+
+    # Add nodes
+    graph.add_node("query_normalize", query_normalize)
+    graph.add_node("index_sync", index_sync)
+    graph.add_node("detect_explicit_web", detect_explicit_web)
+    graph.add_node("internal_retrieve", internal_retrieve)
+    graph.add_node(
+        "judge_gate",
+        judge_gate,
+        retry=RetryPolicy(max_attempts=3)
+    )
+    graph.add_node(
+        "generate_answer",
+        generate_answer,
+        retry=RetryPolicy(max_attempts=2)
+    )
+    graph.add_node(
+        "web_search",
+        generate_web_answer,
+        retry=RetryPolicy(max_attempts=3)
+    )
+
+    # Add edges
+    graph.add_edge(START, "query_normalize")
+    graph.add_edge("query_normalize", "index_sync")
+    graph.add_edge("index_sync", "detect_explicit_web")
+    graph.add_conditional_edges("detect_explicit_web", route_explicit_web)
+    graph.add_conditional_edges("internal_retrieve", route_after_retrieval)
+    graph.add_conditional_edges("judge_gate", route_after_judge)
+    graph.add_conditional_edges("generate_answer", route_after_generate)
+    graph.add_edge("web_search", END)
+
+    return graph.compile()

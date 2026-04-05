@@ -264,21 +264,22 @@ reddit-insights/
 
 **Status:** ✅ Fully operational | **Setup Time:** ~10 min (first run includes dependency downloads)
 
-Semantic search across your newsletter and Twitter digests with intelligent fallback to live web search. Uses local embeddings (ChromaDB), local LLM judge (Ollama), and DuckDuckGo for web results.
+Semantic search across your newsletter and Twitter digests with intelligent fallback to live web search. Uses LangGraph for orchestration, local embeddings (ChromaDB), local LLM judge (Ollama), and DuckDuckGo for web results. Built-in typo correction and per-node retry logic.
 
 ### How It Works
 
-1. **Auto-index** → Processes new summary files from Newsletter Insights and Twitter Insights (bullet-level chunks for precision)
-2. **Route** → Checks for explicit web keywords (latest, news, stock, breaking, etc.)
-   - If detected: skip to web search
-   - Otherwise: try internal summaries first
-3. **Retrieve** → Embeds query locally with `all-MiniLM-L6-v2` and searches ChromaDB by semantic similarity
-4. **Judge** → LLM validates retrieved chunks match your intent (score 0-10; blocks answer if < 5)
-5. **Fallback** → If internal search finds nothing relevant, automatically tries DuckDuckGo web search
-6. **Answer** → Generates a cited response from either internal summaries or web results
-7. **Log** → Persists full trace to SQLite for later analytics (routing, judge scores, timing, etc.)
+Powered by **LangGraph** state machine with 8 nodes and typed state:
 
-Most processing is local. Only external API call is Claude for answer generation.
+1. **Query Normalize** → Fixes typos in your query via Ollama before anything else (e.g., "Anthorpic" → "Anthropic")
+2. **Index Sync** → Processes new summary files from Newsletter Insights and Twitter Insights (bullet-level chunks for precision)
+3. **Detect Explicit Web** → Checks for keywords like "latest", "news", "stock" that signal live data
+4. **Route** → If explicit web detected: jump to web search. Otherwise: try internal summaries first
+5. **Retrieve** → Embeds normalized query locally with `all-MiniLM-L6-v2` and searches ChromaDB by semantic similarity
+6. **Judge** → LLM validates retrieved chunks match your intent (score 0-10; blocks if < 5). **Retries up to 3 times** on JSON parse errors
+7. **Generate Answer** → Produces cited response from internal summaries. **Retries up to 2 times** on connection errors
+8. **Web Search** → DuckDuckGo fallback if internal finds nothing. **Retries up to 3 times** on rate limits
+
+Every decision is logged to SQLite. Only external API call is Ollama (local) for answer generation.
 
 ### One-Time Setup
 
@@ -363,14 +364,15 @@ New summary files are automatically discovered and indexed on the next search ru
 ### File Structure
 ```
 search-news-twitter/
+├── search.py                  # CLI entry point (thin wrapper around graph.invoke())
+├── graph.py                   # LangGraph orchestration: SearchState + 8 nodes + retry policies
 ├── index.py                   # Parses summaries, chunks at bullet level, embeds, upserts to ChromaDB
-├── search.py                  # CLI orchestration: routing, internal search, judge, web fallback, logging
 ├── web_search.py              # DuckDuckGo integration + Ollama result summarization
 ├── logger.py                  # SQLite persistence (no external DB needed)
 ├── data/indexed.json          # Tracks which summary files are indexed (prevents re-processing)
-├── data/search_logs.db        # SQLite audit trail (routing decisions, judge scores, durations, etc.)
+├── data/search_logs.db        # SQLite audit trail (routing, typo corrections, judge scores, retries, durations)
 ├── db/chroma/                 # ChromaDB persistent vector store (auto-created, do not commit)
-└── requirements.txt           # Dependencies: chromadb, sentence-transformers, ollama, ddgs
+└── requirements.txt           # Dependencies: chromadb, sentence-transformers, ollama, ddgs, langgraph
 ```
 
 ---

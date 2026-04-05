@@ -1,7 +1,10 @@
 """
-Semantic search across newsletter and Twitter summaries using RAG.
+Semantic search across newsletter and Twitter summaries using RAG with LangGraph.
 Falls back to live web search (DuckDuckGo) if nothing relevant is found internally.
 Jumps straight to web search if the query explicitly asks for current/live data.
+
+Uses LangGraph for orchestration with typed state, per-node retry policies, and
+a query normalization step that fixes typos before embedding.
 
 Usage:
     python3 search.py --query "database performance trade-offs"
@@ -11,234 +14,11 @@ Usage:
 """
 
 import argparse
-import json
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
-import ollama
-
-from index import get_collection, get_model, index_new_files
+from graph import build_graph
 from logger import init_db, save_log
-from web_search import web_search
-
-OLLAMA_MODEL = "llama3.2"
-
-# Cosine distance threshold — above this score the result is considered not relevant.
-# Cosine distance ranges 0 (identical) to 2 (opposite). 0.8 ≈ similarity < 0.2.
-# Raised from 0.7 to accommodate bullet-level chunks, which are more focused.
-RELEVANCE_THRESHOLD = 0.8
-
-# Intent judge: below this score, skip answer generation
-JUDGE_SCORE_THRESHOLD = 5
-
-# Keywords that signal the user explicitly wants live/current web data.
-# Queries containing these skip internal search and go straight to the web.
-EXPLICIT_WEB_KEYWORDS = {
-    "latest", "last week", "last month", "last year", "yesterday", "today",
-    "this week", "this month", "breaking", "news", "current", "stock", "price",
-    "right now", "live", "recently", "just announced", "new release", "trending",
-}
-
-JUDGE_PROMPT = """You are a retrieval quality judge for a personal RAG knowledge base.
-
-The knowledge base contains ONLY newsletter digests and Twitter digests. It does NOT contain general web knowledge, current events outside those digests, or any other sources.
-
-Given a user query and the titles + content of the top retrieved chunks, evaluate whether the retrieval correctly captured the user's intent.
-
-Respond with ONLY a valid JSON object, no other text:
-{
-  "intent_score": <integer 0-10>,
-  "intent_understood": "<one sentence: what the user is actually looking for>",
-  "retrieval_quality": "<good|partial|poor>",
-  "reasoning": "<2-3 sentences explaining the score>",
-  "recommendation": "<proceed|refine|no_data>"
-}
-
-Scoring:
-- 8-10: Retrieved chunks directly and fully address the query intent
-- 5-7: Partial match — some chunks relevant, others tangential
-- 3-4: Weak match — chunks loosely related but miss the core intent
-- 0-2: Poor match — chunks off-topic, or user is asking about something not in this knowledge base"""
-
-SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
-
-Answer the user's question using ONLY the provided context chunks below.
-- Do not use any knowledge outside the context.
-- If the context does not contain enough information to answer, say: "I don't have enough relevant content in the indexed summaries to answer this question."
-- Cite your sources inline using [Source N] notation matching the context headers.
-- Be concise. Synthesize across sources when multiple chunks are relevant.
-- Do not fabricate names, numbers, or claims not present in the context."""
-
-
-def is_explicit_web_query(query):
-    """Return True if the query contains keywords signalling a need for live/current data."""
-    query_lower = query.lower()
-    return any(kw in query_lower for kw in EXPLICIT_WEB_KEYWORDS)
-
-
-def judge_retrieval(query, docs, metas):
-    """Score whether retrieved chunks match the user's query intent (0-10)."""
-    chunk_summaries = []
-    for i, (doc, meta) in enumerate(zip(docs, metas), start=1):
-        first_line = doc.split("\n")[0]
-        chunk_summaries.append(
-            f"[Chunk {i}] {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{first_line}"
-        )
-    chunks_text = "\n\n".join(chunk_summaries)
-    user_msg = f"User query: {query}\n\nRetrieved chunks:\n\n{chunks_text}"
-
-    try:
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": JUDGE_PROMPT},
-                {"role": "user", "content": user_msg},
-            ],
-        )
-        raw = response.message.content.strip()
-        # Strip markdown code fences if the model wraps its JSON
-        if "```" in raw:
-            raw = raw.split("```")[1].lstrip("json").strip()
-        return json.loads(raw)
-    except Exception:
-        # If judge fails, treat as poor quality — fall back to web rather than guess
-        return {
-            "intent_score": 0,
-            "intent_understood": "unknown",
-            "retrieval_quality": "unknown",
-            "reasoning": "Judge parse error — falling back to web.",
-            "recommendation": "no_data",
-            "_parse_error": True,
-        }
-
-
-def build_where_filter(source, date_from):
-    conditions = []
-    if source:
-        conditions.append({"source_type": source})
-    if date_from:
-        conditions.append({"date": {"$gte": date_from}})
-
-    if len(conditions) == 0:
-        return None
-    elif len(conditions) == 1:
-        return conditions[0]
-    else:
-        return {"$and": conditions}
-
-
-def search(query, source=None, top_k=5, date_from=None, log=None):
-    """
-    Search internal ChromaDB summaries. Returns True if a relevant answer was found
-    and printed, False if nothing useful was found (signals caller to try web fallback).
-
-    Args:
-        log: Optional dict for recording the search session. Modified in-place.
-    """
-    collection = get_collection()
-
-    if collection.count() == 0:
-        print("Index is empty. Run `python3 index.py` first.")
-        return False
-
-    model = get_model()
-    query_embedding = model.encode([query], show_progress_bar=False).tolist()[0]
-    where = build_where_filter(source, date_from)
-
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=min(top_k, collection.count()),
-        where=where,
-        include=["documents", "metadatas", "distances"],
-    )
-
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-    distances = results["distances"][0]
-
-    if log is not None:
-        log["internal_attempted"] = True
-        log["top_chunk_distance"] = distances[0] if distances else None
-
-    if not docs or distances[0] > RELEVANCE_THRESHOLD:
-        if log is not None:
-            log["chunks_passed_threshold"] = False
-        return False
-    if log is not None:
-        log["chunks_passed_threshold"] = True
-
-    # Intent judge — semantic check before answer generation
-    verdict = judge_retrieval(query, docs, metas)
-    score = verdict.get("intent_score", 0)
-    print(
-        f"\nIntent Judge | score: {score}/10 | "
-        f"quality: {verdict.get('retrieval_quality')} | "
-        f"{verdict.get('recommendation')}"
-    )
-    print(f"  Intent understood: {verdict.get('intent_understood', '')}")
-    print(f"  Reasoning: {verdict.get('reasoning', '')}\n")
-
-    if log is not None:
-        log["judge_attempted"] = True
-        log["judge_score"] = verdict.get("intent_score")
-        log["judge_quality"] = verdict.get("retrieval_quality")
-        log["judge_intent_understood"] = verdict.get("intent_understood")
-        log["judge_reasoning"] = verdict.get("reasoning")
-        log["judge_parse_error"] = verdict.get("_parse_error", False)
-
-    if score < JUDGE_SCORE_THRESHOLD:
-        return False
-
-    # Build context blocks with [Source N] labels
-    context_blocks = []
-    for i, (doc, meta) in enumerate(zip(docs, metas), start=1):
-        tag_part = f" | {meta['tag']}" if meta.get("tag") else ""
-        header = (
-            f"[Source {i}] {meta['source_type'].upper()} | "
-            f"{meta['date']} | {meta['author']} | {meta['title']}{tag_part}"
-        )
-        context_blocks.append(f"{header}\n{doc}")
-
-    context_text = "\n\n---\n\n".join(context_blocks)
-
-    try:
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n\n{context_text}\n\n---\n\nQuestion: {query}"},
-            ],
-        )
-    except Exception as e:
-        if "connection" in str(e).lower():
-            print("Ollama is not running. Start it with: ollama serve")
-            return False
-        raise
-
-    answer = response.message.content
-    if log is not None:
-        log["internal_answer_generated"] = True
-
-    # If the LLM itself says it has no relevant content, treat as a miss
-    if "don't have enough relevant content" in answer.lower():
-        if log is not None:
-            log["internal_no_content_response"] = True
-        return False
-
-    if log is not None:
-        log["internal_no_content_response"] = False
-        log["internal_succeeded"] = True
-        log["final_output"] = answer
-
-    print(f"\n{answer}\n")
-    print("---")
-    print("Sources:")
-    for i, (meta, dist) in enumerate(zip(metas, distances), start=1):
-        src_label = meta["source_type"].upper().ljust(10)
-        tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
-        print(f"  [{i}] {src_label} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
-    return True
 
 
 def main():
@@ -263,48 +43,84 @@ def main():
     except Exception:
         pass  # If DB init fails, logging is silently disabled
 
-    log = {
+    # Build initial state
+    initial_state = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "query": args.query,
+        "normalized_query": args.query,  # Will be updated by query_normalize node
+        "source": args.source,
+        "top_k": args.top_k,
+        "date_from": args.date_from,
+        "explicit_web_detected": False,
+        "docs": [],
+        "metas": [],
+        "distances": [],
+        "chunks_passed_threshold": None,
+        "judge_score": None,
+        "judge_quality": None,
+        "judge_intent_understood": None,
+        "judge_reasoning": None,
+        "judge_parse_error": False,
+        "internal_answer": None,
+        "internal_succeeded": False,
+        "internal_no_content_response": False,
+        "web_answer": None,
+        "web_result_count": 0,
+        "web_succeeded": False,
+        "web_was_fallback": False,
+        "final_output": None,
+        "errors": [],
+        "duration_ms": None,
     }
+
     start_ms = time.monotonic()
 
     try:
-        # Auto-index any new summary files before searching
-        index_new_files(verbose=True)
+        # Build and invoke the graph
+        graph = build_graph()
+        final_state = graph.invoke(initial_state)
 
-        # If query explicitly asks for live/current data, skip straight to web
-        if is_explicit_web_query(args.query):
-            print("Explicit web query detected → skipping internal search\n")
-            log["explicit_web_detected"] = True
-            log["web_attempted"] = True
-            log["web_was_fallback"] = False
-            web_search(args.query, log=log)
-            return
+        # Extract results for logging
+        distances = final_state.get("distances", [])
+        log = {
+            "timestamp": initial_state["timestamp"],
+            "query": initial_state["query"],
+            "normalized_query": final_state.get("normalized_query"),
+            "explicit_web_detected": final_state.get("explicit_web_detected", False),
+            "internal_attempted": bool(final_state.get("chunks_passed_threshold") is not None),
+            "top_chunk_distance": distances[0] if distances else None,
+            "chunks_passed_threshold": final_state.get("chunks_passed_threshold"),
+            "judge_attempted": final_state.get("judge_score") is not None,
+            "judge_score": final_state.get("judge_score"),
+            "judge_quality": final_state.get("judge_quality"),
+            "judge_intent_understood": final_state.get("judge_intent_understood"),
+            "judge_reasoning": final_state.get("judge_reasoning"),
+            "judge_parse_error": final_state.get("judge_parse_error", False),
+            "internal_answer_generated": final_state.get("internal_answer") is not None,
+            "internal_no_content_response": final_state.get("internal_no_content_response", False),
+            "internal_succeeded": final_state.get("internal_succeeded", False),
+            "web_attempted": final_state.get("web_answer") is not None,
+            "web_was_fallback": final_state.get("web_was_fallback", False),
+            "web_result_count": final_state.get("web_result_count", 0),
+            "web_succeeded": final_state.get("web_succeeded", False),
+            "final_output": final_state.get("final_output"),
+            "duration_ms": int((time.monotonic() - start_ms) * 1000),
+        }
 
-        # Otherwise try internal summaries first
-        print("Searching internal summaries...")
-        found = search(
-            query=args.query,
-            source=args.source,
-            top_k=args.top_k,
-            date_from=args.date_from,
-            log=log,
-        )
-
-        # If nothing relevant found internally, fall back to web
-        if not found:
-            print("Nothing relevant found in internal summaries → falling back to web search\n")
-            log["web_attempted"] = True
-            log["web_was_fallback"] = True
-            web_search(args.query, log=log)
+        # Add errors if any
+        if final_state.get("errors"):
+            log["error"] = "; ".join(final_state["errors"])
 
     except Exception as e:
-        log["error"] = str(e)
+        log = {
+            "timestamp": initial_state["timestamp"],
+            "query": initial_state["query"],
+            "duration_ms": int((time.monotonic() - start_ms) * 1000),
+            "error": str(e),
+        }
         raise  # re-raise so the user still sees the traceback
 
     finally:
-        log["duration_ms"] = int((time.monotonic() - start_ms) * 1000)
         try:
             save_log(log)
         except Exception:
