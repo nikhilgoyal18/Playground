@@ -99,13 +99,13 @@ def judge_retrieval(query, docs, metas):
             raw = raw.split("```")[1].lstrip("json").strip()
         return json.loads(raw)
     except Exception:
-        # If judge fails, default to proceeding — don't block on judge errors
+        # If judge fails, treat as poor quality — fall back to web rather than guess
         return {
-            "intent_score": 7,
+            "intent_score": 0,
             "intent_understood": "unknown",
             "retrieval_quality": "unknown",
-            "reasoning": "Judge parse error — proceeding.",
-            "recommendation": "proceed",
+            "reasoning": "Judge parse error — falling back to web.",
+            "recommendation": "no_data",
         }
 
 
@@ -193,7 +193,12 @@ def search(query, source=None, top_k=5, date_from=None):
             return False
         raise
 
-    print(f"\n{response.message.content}\n")
+    answer = response.message.content
+    # If the LLM itself says it has no relevant content, treat as a miss
+    if "don't have enough relevant content" in answer.lower():
+        return False
+
+    print(f"\n{answer}\n")
     print("---")
     print("Sources:")
     for i, (meta, dist) in enumerate(zip(metas, distances), start=1):
