@@ -1,3 +1,4 @@
 chromadb>=0.5.0
 sentence-transformers>=3.0.0
 ollama>=0.3.0
+ddgs>=3.0.0

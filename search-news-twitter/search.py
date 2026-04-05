@@ -15,6 +15,7 @@ from pathlib import Path
 import ollama
 
 from index import get_collection, get_model, index_new_files
+from web_search import web_search
 
 OLLAMA_MODEL = "llama3.2"
 
@@ -25,6 +26,18 @@ RELEVANCE_THRESHOLD = 0.8
 
 # Intent judge: below this score, skip answer generation
 JUDGE_SCORE_THRESHOLD = 5
+
+ROUTER_PROMPT = """You are a query router. Decide whether to answer using:
+- "internal": the user's personal newsletter and Twitter digest summaries
+- "web": live internet search for current/real-time information
+
+Respond with ONLY the word: internal  OR  web
+
+Choose "web" if the query asks about: latest news, current events, live prices, recent happenings, today's updates, breaking news, or anything time-sensitive.
+
+Choose "internal" if the query asks about: what the user has read, topics from newsletters/Twitter, or general knowledge topics likely covered in tech digests.
+
+Default to "internal" when unclear."""
 
 JUDGE_PROMPT = """You are a retrieval quality judge for a personal RAG knowledge base.
 
@@ -55,6 +68,28 @@ Answer the user's question using ONLY the provided context chunks below.
 - Cite your sources inline using [Source N] notation matching the context headers.
 - Be concise. Synthesize across sources when multiple chunks are relevant.
 - Do not fabricate names, numbers, or claims not present in the context."""
+
+
+def route_query(query):
+    """
+    Use LLM to decide whether to search internal summaries or the web.
+    Returns "internal" or "web".
+    """
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": ROUTER_PROMPT},
+                {"role": "user", "content": query},
+            ],
+        )
+        route = response.message.content.strip().lower()
+        if route in ("internal", "web"):
+            return route
+        return "internal"  # default on unexpected output
+    except Exception:
+        # On any error, default to internal
+        return "internal"
 
 
 def judge_retrieval(query, docs, metas):
@@ -189,29 +224,36 @@ def search(query, source=None, top_k=5, date_from=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Search newsletter and Twitter summaries with RAG"
+        description="Search newsletter, Twitter summaries, or the web"
     )
     parser.add_argument("--query", "-q", required=True, help="Search query")
     parser.add_argument(
-        "--source", choices=["newsletter", "twitter"], help="Filter by source type"
+        "--source", choices=["newsletter", "twitter"], help="Filter by source type (internal search only)"
     )
     parser.add_argument(
         "--top-k", "-k", type=int, default=5, help="Number of chunks to retrieve (default: 5)"
     )
     parser.add_argument(
-        "--date-from", help="Only search summaries from this date onward (YYYY-MM-DD)"
+        "--date-from", help="Only search summaries from this date onward (YYYY-MM-DD, internal search only)"
     )
     args = parser.parse_args()
 
     # Auto-index any new summary files before searching
     index_new_files(verbose=True)
 
-    search(
-        query=args.query,
-        source=args.source,
-        top_k=args.top_k,
-        date_from=args.date_from,
-    )
+    # Route query to internal or web search
+    route = route_query(args.query)
+    print(f"Router → {route.upper()}\n")
+
+    if route == "web":
+        web_search(args.query)
+    else:
+        search(
+            query=args.query,
+            source=args.source,
+            top_k=args.top_k,
+            date_from=args.date_from,
+        )
 
 
 if __name__ == "__main__":
