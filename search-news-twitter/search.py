@@ -80,6 +80,17 @@ def main():
         graph = build_graph()
         final_state = graph.invoke(initial_state)
 
+        # Print the answer to user
+        if final_state.get("final_output"):
+            print(f"\n{final_state['final_output']}\n")
+            if final_state.get("internal_succeeded"):
+                # Print internal sources
+                print("---")
+                print("Sources:")
+                for i, meta in enumerate(final_state.get("metas", []), start=1):
+                    tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
+                    print(f"  [{i}] {meta['source_type'].upper()} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
+
         # Extract results for logging
         distances = final_state.get("distances", [])
         log = {
