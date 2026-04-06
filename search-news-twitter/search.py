@@ -132,11 +132,20 @@ def main():
     if cached:
         print("\n[Cached result — run with fresh data]\n")
         print(cached["final_output"])
-        # Print sources if cached
+        # Print sources if cached (deduplicated)
         if cached.get("metas"):
             print("---")
             print("Sources:")
-            for i, meta in enumerate(cached["metas"], start=1):
+
+            # Deduplicate by (source_type, date, author, title)
+            unique_sources = {}
+            for meta in cached["metas"]:
+                key = (meta["source_type"], meta["date"], meta["author"], meta["title"])
+                if key not in unique_sources:
+                    unique_sources[key] = meta
+
+            # Print deduplicated sources with new numbering
+            for i, (_, meta) in enumerate(unique_sources.items(), start=1):
                 tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
                 print(f"  [{i}] {meta['source_type'].upper()} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
         return
@@ -185,10 +194,19 @@ def main():
         if final_state.get("final_output"):
             print(f"\n{final_state['final_output']}\n")
             if final_state.get("internal_succeeded"):
-                # Print internal sources
+                # Print internal sources (deduplicated)
                 print("---")
                 print("Sources:")
-                for i, meta in enumerate(final_state.get("metas", []), start=1):
+
+                # Deduplicate by (source_type, date, author, title)
+                unique_sources = {}
+                for meta in final_state.get("metas", []):
+                    key = (meta["source_type"], meta["date"], meta["author"], meta["title"])
+                    if key not in unique_sources:
+                        unique_sources[key] = meta
+
+                # Print deduplicated sources with new numbering
+                for i, (_, meta) in enumerate(unique_sources.items(), start=1):
                     tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
                     print(f"  [{i}] {meta['source_type'].upper()} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
 
