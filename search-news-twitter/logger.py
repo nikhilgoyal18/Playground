@@ -70,6 +70,8 @@ def init_db():
     """Create the DB and table if they don't exist. Safe to call on every run."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
+        # Enable WAL mode to prevent locking issues with concurrent access
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(CREATE_TABLE_SQL)
         conn.commit()
 
@@ -105,8 +107,11 @@ def save_log(log: dict):
         "final_output": _truncate(log.get("final_output"), 2000),
         "error": log.get("error"),
     }
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
         conn.execute(INSERT_SQL, row)
+        conn.commit()
+        # Explicit WAL checkpoint to flush to disk immediately
+        conn.execute("PRAGMA wal_checkpoint(RESTART)")
         conn.commit()
 
 
