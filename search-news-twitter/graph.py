@@ -29,28 +29,21 @@ EXPLICIT_WEB_KEYWORDS = {
     "right now", "live", "recently", "just announced", "new release", "trending",
 }
 
-JUDGE_PROMPT = """You are a retrieval quality judge for a personal RAG knowledge base.
+JUDGE_PROMPT = """You are a retrieval quality judge. Score whether retrieved chunks match the user's intent (0-10).
 
-The knowledge base contains ONLY newsletter digests and Twitter digests. It does NOT contain general web knowledge, current events outside those digests, or any other sources.
+CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown.
+- All keys must be quoted: "intent_score"
+- All values must be quoted OR be integers: "good" or 8
+- No trailing commas. No unquoted fields.
 
-Given a user query and the titles + content of the top retrieved chunks, evaluate whether the retrieval correctly captured the user's intent.
+Strict template:
+{"intent_score": 8, "intent_understood": "User wants AI features", "retrieval_quality": "good", "reasoning": "Chunks directly answer", "recommendation": "proceed"}
 
-IMPORTANT: Respond with ONLY valid JSON, no other text. All string values MUST be quoted with double quotes.
-
-Example:
-{
-  "intent_score": 8,
-  "intent_understood": "The user wants to know about AI features",
-  "retrieval_quality": "good",
-  "reasoning": "Retrieved chunks directly address the user's query",
-  "recommendation": "proceed"
-}
-
-Scoring:
-- 8-10: Retrieved chunks directly and fully address the query intent
-- 5-7: Partial match — some chunks relevant, others tangential
-- 3-4: Weak match — chunks loosely related but miss the core intent
-- 0-2: Poor match — chunks off-topic, or user is asking about something not in this knowledge base"""
+Scoring guide:
+- 8-10: Chunks directly match query intent
+- 5-7: Partial match
+- 3-4: Loosely related
+- 0-2: Off-topic or not in knowledge base"""
 
 SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
 
