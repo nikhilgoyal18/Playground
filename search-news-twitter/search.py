@@ -14,11 +14,94 @@ Usage:
 """
 
 import argparse
+import hashlib
+import json
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from graph import build_graph
 from logger import init_db, save_log
+
+
+# Query caching configuration
+CACHE_TTL_HOURS = 24
+CACHE_PATH = Path(__file__).parent / "data" / "query_cache.json"
+
+
+def load_cache() -> dict:
+    """Load the query cache from disk."""
+    if not CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(CACHE_PATH.read_text())
+    except Exception:
+        return {}
+
+
+def save_cache(cache: dict):
+    """Save the query cache to disk."""
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_PATH.write_text(json.dumps(cache, indent=2))
+
+
+def get_cache_key(query: str, source: str, top_k: int, date_from: str) -> str:
+    """Generate MD5 hash cache key from query parameters."""
+    raw = f"{query.strip().lower()}|{source}|{top_k}|{date_from}"
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
+def lookup_cache(key: str) -> dict:
+    """
+    Look up cached answer by key. Returns None if not found or expired.
+
+    Returns:
+        dict with "final_output" and "metas" keys, or None if not cached
+    """
+    cache = load_cache()
+    entry = cache.get(key)
+    if not entry:
+        return None
+
+    # Check TTL
+    try:
+        age_hours = (
+            (datetime.now(timezone.utc) - datetime.fromisoformat(entry["timestamp"]))
+            .total_seconds()
+            / 3600
+        )
+        if age_hours > CACHE_TTL_HOURS:
+            return None
+    except Exception:
+        return None
+
+    return entry
+
+
+def store_cache(key: str, final_output: str, metas: list):
+    """
+    Store answer in cache. Evicts expired entries.
+
+    Args:
+        key: Cache key from get_cache_key()
+        final_output: The generated answer
+        metas: List of source metadata dicts
+    """
+    cache = load_cache()
+    cache[key] = {
+        "final_output": final_output,
+        "metas": metas,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Evict expired entries
+    cutoff = datetime.now(timezone.utc).timestamp() - CACHE_TTL_HOURS * 3600
+    cache = {
+        k: v
+        for k, v in cache.items()
+        if datetime.fromisoformat(v["timestamp"]).timestamp() > cutoff
+    }
+    save_cache(cache)
 
 
 def main():
@@ -43,6 +126,21 @@ def main():
     except Exception:
         pass  # If DB init fails, logging is silently disabled
 
+    # Check cache first (only for internal hits)
+    cache_key = get_cache_key(args.query, args.source, args.top_k, args.date_from)
+    cached = lookup_cache(cache_key)
+    if cached:
+        print("\n[Cached result — run with fresh data]\n")
+        print(cached["final_output"])
+        # Print sources if cached
+        if cached.get("metas"):
+            print("---")
+            print("Sources:")
+            for i, meta in enumerate(cached["metas"], start=1):
+                tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
+                print(f"  [{i}] {meta['source_type'].upper()} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
+        return
+
     # Build initial state
     initial_state = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -62,6 +160,7 @@ def main():
         "judge_reasoning": None,
         "judge_parse_error": False,
         "internal_answer": None,
+        "internal_answer_generated": None,
         "internal_succeeded": False,
         "internal_no_content_response": False,
         "web_answer": None,
@@ -71,6 +170,8 @@ def main():
         "final_output": None,
         "errors": [],
         "duration_ms": None,
+        "total_llm_tokens_in": 0,
+        "total_llm_tokens_out": 0,
     }
 
     start_ms = time.monotonic()
@@ -91,6 +192,14 @@ def main():
                     tag_part = f" [{meta['tag']}]" if meta.get("tag") else ""
                     print(f"  [{i}] {meta['source_type'].upper()} | {meta['date']} | {meta['author']} | {meta['title']}{tag_part}")
 
+        # Cache internal hits (before logging)
+        if final_state.get("internal_succeeded") and final_state.get("final_output"):
+            store_cache(
+                cache_key,
+                final_state["final_output"],
+                final_state.get("metas", [])
+            )
+
         # Extract results for logging
         distances = final_state.get("distances", [])
         log = {
@@ -107,7 +216,7 @@ def main():
             "judge_intent_understood": final_state.get("judge_intent_understood"),
             "judge_reasoning": final_state.get("judge_reasoning"),
             "judge_parse_error": final_state.get("judge_parse_error", False),
-            "internal_answer_generated": final_state.get("internal_answer") is not None,
+            "internal_answer_generated": final_state.get("internal_answer_generated"),
             "internal_no_content_response": final_state.get("internal_no_content_response", False),
             "internal_succeeded": final_state.get("internal_succeeded", False),
             "web_attempted": final_state.get("web_answer") is not None,
@@ -116,6 +225,8 @@ def main():
             "web_succeeded": final_state.get("web_succeeded", False),
             "final_output": final_state.get("final_output"),
             "duration_ms": int((time.monotonic() - start_ms) * 1000),
+            "total_llm_tokens_in": final_state.get("total_llm_tokens_in", 0),
+            "total_llm_tokens_out": final_state.get("total_llm_tokens_out", 0),
         }
 
         # Add errors if any

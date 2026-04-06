@@ -55,11 +55,12 @@ Scoring:
 SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
 
 Answer the user's question using ONLY the provided context chunks below.
-- Do not use any knowledge outside the context.
-- If the context does not contain enough information to answer, say: "I don't have enough relevant content in the indexed summaries to answer this question."
+- The chunks have already been validated as relevant to the query. Use them.
 - Cite your sources inline using [Source N] notation matching the context headers.
 - Be concise. Synthesize across sources when multiple chunks are relevant.
-- Do not fabricate names, numbers, or claims not present in the context."""
+- Do not fabricate names, numbers, or claims not present in the context.
+- Only say "I don't have enough relevant content in the indexed summaries to answer this question."
+  if the chunks are genuinely about a completely different topic than the question."""
 
 
 class SearchState(TypedDict):
@@ -89,6 +90,7 @@ class SearchState(TypedDict):
 
     # Answer
     internal_answer: Optional[str]
+    internal_answer_generated: Optional[bool]
     internal_succeeded: bool
     internal_no_content_response: bool
     web_answer: Optional[str]
@@ -101,6 +103,10 @@ class SearchState(TypedDict):
     errors: Annotated[List[str], operator.add]
     duration_ms: Optional[int]
     timestamp: str
+
+    # Token tracking (accumulated across all LLM nodes)
+    total_llm_tokens_in: Annotated[int, operator.add]
+    total_llm_tokens_out: Annotated[int, operator.add]
 
 
 # ============================================================================
@@ -124,7 +130,13 @@ def query_normalize(state: SearchState) -> dict:
             ],
         )
         normalized = response.message.content.strip()
-        return {"normalized_query": normalized or state["query"]}
+        tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
+        tokens_out = getattr(response, 'eval_count', 0) or 0
+        return {
+            "normalized_query": normalized or state["query"],
+            "total_llm_tokens_in": tokens_in,
+            "total_llm_tokens_out": tokens_out,
+        }
     except Exception as e:
         return {"normalized_query": state["query"], "errors": [f"query_normalize error: {str(e)}"]}
 
@@ -239,12 +251,17 @@ def judge_gate(state: SearchState) -> dict:
     # RAISES on invalid JSON — triggers RetryPolicy
     verdict = json.loads(raw)
 
+    tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
+    tokens_out = getattr(response, 'eval_count', 0) or 0
+
     return {
         "judge_score": verdict["intent_score"],
         "judge_quality": verdict["retrieval_quality"],
         "judge_intent_understood": verdict["intent_understood"],
         "judge_reasoning": verdict["reasoning"],
         "judge_parse_error": False,
+        "total_llm_tokens_in": tokens_in,
+        "total_llm_tokens_out": tokens_out,
     }
 
 
@@ -275,22 +292,51 @@ def generate_answer(state: SearchState) -> dict:
     # Check if LLM says it has no content
     no_content = "don't have enough relevant content" in answer.lower()
 
+    # If judge already scored ≥8, trust the judge over the LLM's conservatism
+    if no_content and (state.get("judge_score") or 0) >= 8:
+        no_content = False
+
+    tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
+    tokens_out = getattr(response, 'eval_count', 0) or 0
+
     return {
         "internal_answer": answer,
         "internal_answer_generated": True,
         "internal_no_content_response": no_content,
         "internal_succeeded": not no_content,
         "final_output": answer if not no_content else None,
+        "total_llm_tokens_in": tokens_in,
+        "total_llm_tokens_out": tokens_out,
     }
 
 
 def generate_web_answer(state: SearchState) -> dict:
     """Generate answer from web search."""
-    answer = web_search(state["normalized_query"], max_results=5)
+    result = web_search(state["normalized_query"], max_results=5)
+
+    # web_search returns (answer, result_count, tokens_in, tokens_out)
+    if isinstance(result, tuple) and len(result) == 4:
+        answer, result_count, tokens_in, tokens_out = result
+    elif isinstance(result, tuple) and len(result) == 2:
+        # Backward compatibility with old 2-tuple format
+        answer, result_count = result
+        tokens_in, tokens_out = 0, 0
+    else:
+        # Fallback for other return types
+        answer = result
+        result_count = tokens_in = tokens_out = 0
+
+    # web_was_fallback = True if we got here because internal failed, not explicit web
+    was_fallback = not state.get("explicit_web_detected", False)
+
     return {
-        "web_answer": answer,
-        "web_succeeded": True,
-        "final_output": answer,
+        "web_answer": answer or None,
+        "web_succeeded": bool(answer),       # True only if answer has content
+        "web_result_count": result_count,
+        "web_was_fallback": was_fallback,
+        "final_output": answer or None,
+        "total_llm_tokens_in": tokens_in,
+        "total_llm_tokens_out": tokens_out,
     }
 
 
