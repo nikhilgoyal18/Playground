@@ -5,7 +5,6 @@ Serves a web interface at http://localhost:5000 for semantic search across diges
 
 import time
 import json
-import uuid
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template
 
@@ -69,11 +68,9 @@ def search():
     if not query:
         return jsonify({"error": "Query cannot be empty"}), 400
 
-    # Generate unique search ID
-    search_id = str(uuid.uuid4())[:8].upper()
-
     # Build initial state (mirrors search.py main())
     timestamp = datetime.now(timezone.utc).isoformat()
+    search_id = None  # Will be assigned after logging to DB
     initial_state = {
         "timestamp": timestamp,
         "query": query,
@@ -131,24 +128,12 @@ def search():
 
     sources = list(unique_sources.values())
 
-    # Build response
-    response = {
-        "search_id": search_id,
-        "answer": final_state.get("final_output") or "",
-        "sources": sources,
-        "tokens_in": final_state.get("total_llm_tokens_in", 0),
-        "tokens_out": final_state.get("total_llm_tokens_out", 0),
-        "duration_ms": duration_ms,
-        "path": _classify_path(final_state),
-        "judge_score": final_state.get("judge_score"),
-        "web_result_count": final_state.get("web_result_count", 0),
-    }
-
-    # Log the search (if logging is available)
+    # Log the search (if logging is available) and get the ID
+    search_id = None
+    print(f"DEBUG: About to log search for query: {query}")
     try:
         distances = final_state.get("distances", [])
         log = {
-            "search_id": search_id,
             "timestamp": timestamp,
             "query": query,
             "normalized_query": final_state.get("normalized_query"),
@@ -176,9 +161,26 @@ def search():
         }
         if final_state.get("errors"):
             log["error"] = "; ".join(final_state["errors"])
-        save_log(log)
+        search_id = save_log(log)  # Get the database ID
+        print(f"DEBUG: Logged search with ID: {search_id}")
     except Exception as e:
         print(f"Warning: Failed to log search: {e}")
+        import traceback
+        traceback.print_exc()
+        search_id = None
+
+    # Build response (after logging to include the ID)
+    response = {
+        "id": search_id,  # Database row ID for lookup
+        "answer": final_state.get("final_output") or "",
+        "sources": sources,
+        "tokens_in": final_state.get("total_llm_tokens_in", 0),
+        "tokens_out": final_state.get("total_llm_tokens_out", 0),
+        "duration_ms": duration_ms,
+        "path": _classify_path(final_state),
+        "judge_score": final_state.get("judge_score"),
+        "web_result_count": final_state.get("web_result_count", 0),
+    }
 
     return jsonify(response), 200
 

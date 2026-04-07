@@ -40,7 +40,12 @@
       "Bash(git rebase:*)",
       "Bash(git stash:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(pkill -f \"python3 app.py\")",
+      "Bash(xargs rm:*)",
+      "Bash(curl -s -X POST http://localhost:5001/search -H 'Content-Type: application/json' -d '{\"query\":\"test\",\"source\":null,\"top_k\":5}')",
+      "Read(//tmp/**)",
+      "Bash(pkill -9 python3)"
     ]
   }
 }

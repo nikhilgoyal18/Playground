@@ -11,7 +11,6 @@ DB_PATH = Path(__file__).parent / "data" / "search_logs.db"
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS searches (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-    search_id                   TEXT UNIQUE,
     timestamp                   TEXT NOT NULL,
     query                       TEXT NOT NULL,
     normalized_query            TEXT,
@@ -49,7 +48,7 @@ CREATE TABLE IF NOT EXISTS searches (
 
 INSERT_SQL = """
 INSERT INTO searches (
-    search_id, timestamp, query, normalized_query, duration_ms,
+    timestamp, query, normalized_query, duration_ms,
     explicit_web_detected,
     internal_attempted, top_chunk_distance, chunks_passed_threshold,
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
@@ -58,7 +57,7 @@ INSERT INTO searches (
     web_attempted, web_was_fallback, web_result_count, web_succeeded,
     final_output, error, total_llm_tokens_in, total_llm_tokens_out
 ) VALUES (
-    :search_id, :timestamp, :query, :normalized_query, :duration_ms,
+    :timestamp, :query, :normalized_query, :duration_ms,
     :explicit_web_detected,
     :internal_attempted, :top_chunk_distance, :chunks_passed_threshold,
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
@@ -82,12 +81,14 @@ def init_db():
 
 def save_log(log: dict):
     """
-    Write a completed log dict to the DB. All fields are written via named
-    parameters; missing keys fall back to None naturally via dict.get().
+    Write a completed log dict to the DB and return the inserted row ID.
+    All fields are written via named parameters; missing keys fall back to None naturally via dict.get().
     Caller wraps this in try/except — failures must not crash the search flow.
+
+    Returns:
+        int: The auto-increment ID of the inserted row, or None on error
     """
     row = {
-        "search_id": log.get("search_id"),
         "timestamp": log.get("timestamp"),
         "query": log.get("query"),
         "normalized_query": log.get("normalized_query"),
@@ -115,11 +116,13 @@ def save_log(log: dict):
         "total_llm_tokens_out": log.get("total_llm_tokens_out"),
     }
     with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        conn.execute(INSERT_SQL, row)
+        cursor = conn.execute(INSERT_SQL, row)
+        inserted_id = cursor.lastrowid
         conn.commit()
         # Explicit WAL checkpoint to flush to disk immediately
         conn.execute("PRAGMA wal_checkpoint(RESTART)")
         conn.commit()
+        return inserted_id
 
 
 def _opt_int(value):

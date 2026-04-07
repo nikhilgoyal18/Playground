@@ -381,8 +381,8 @@
                 logDetails.className = "log-details";
                 logDetails.innerHTML = `
                     <div class="log-row">
-                        <div class="log-label">Search ID:</div>
-                        <div class="log-value"><span class="search-id" data-search-id="${metadata.search_id}">${metadata.search_id}</span></div>
+                        <div class="log-label">Query ID:</div>
+                        <div class="log-value"><span class="search-id" data-search-id="${metadata.id}">${metadata.id}</span></div>
                     </div>
                     <div class="log-row">
                         <div class="log-label">Path:</div>
@@ -500,7 +500,7 @@
                     addMessage(`Error: ${data.error || "Unknown error"}`, false);
                 } else {
                     addMessage(data.answer || "No answer generated", false, {
-                        search_id: data.search_id,
+                        id: data.id,
                         sources: data.sources || [],
                         path: data.path,
                         tokens_in: data.tokens_in,
