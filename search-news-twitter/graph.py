@@ -219,9 +219,10 @@ def judge_gate(state: SearchState) -> dict:
     """LLM intent judge — raises on parse error to trigger RetryPolicy."""
     chunk_summaries = []
     for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
-        first_line = doc.split("\n")[0]
+        # Show first 200 chars of chunk for judge to evaluate
+        preview = doc[:200] if len(doc) > 200 else doc
         chunk_summaries.append(
-            f"[Chunk {i}] {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{first_line}"
+            f"[Chunk {i}] {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{preview}"
         )
     chunks_text = "\n\n".join(chunk_summaries)
     user_msg = f"User query: {state['normalized_query']}\n\nRetrieved chunks:\n\n{chunks_text}"
