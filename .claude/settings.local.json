@@ -31,7 +31,15 @@
       "mcp__reddit-mcp-buddy__get_post_details",
       "Bash(python3 index.py*)",
       "Bash(python3 search.py*)",
-      "Skill(search-news-twitter)"
+      "Skill(search-news-twitter)",
+      "WebFetch(domain:docs.langchain.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(sqlite3:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)",
+      "Bash(ls:*)"
     ]
   }
 }

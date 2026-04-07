@@ -1,0 +1,186 @@
+{
+  "eef1d0eacb61a506c046dabdc8750794": {
+    "final_output": "While the provided context chunks are related to Agentic RAG and AI/ML, they do not directly address microservice architecture.\n\nHowever, there is a subtle connection between Subagents (Source 4) and microservices. In general, subagents can be seen as analogous to independent services or microservices that work together to achieve a larger goal.\n\nThat being said, I couldn't find direct references to microservice architecture in the provided context chunks. If you'd like to know more about microservices in general, I'd be happy to help with that!",
+    "metas": [
+      {
+        "tag": "AI/ML",
+        "source_type": "newsletter",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "date": "2026-04-04",
+        "title": "Agentic RAG vs Traditional RAG"
+      },
+      {
+        "title": "Agentic RAG vs Traditional RAG",
+        "date": "2026-04-04",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "tag": "AI/ML",
+        "source_type": "newsletter"
+      },
+      {
+        "title": "How Reddit Migrated Petabyte-Scale Kafka from EC2 to Kubernetes",
+        "source_type": "newsletter",
+        "date": "2026-04-02",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "tag": "Engineering"
+      },
+      {
+        "tag": "AI/ML",
+        "date": "2026-04-04",
+        "source_type": "newsletter",
+        "author": "ByteByteGo",
+        "title": "EP209: 12 Claude Code Features Every Engineer Should Know",
+        "file": "newsletter-insights/summaries/2026-04-04.md"
+      },
+      {
+        "title": "How Reddit Migrated Petabyte-Scale Kafka from EC2 to Kubernetes",
+        "date": "2026-04-02",
+        "tag": "Engineering",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "source_type": "newsletter",
+        "author": "ByteByteGo"
+      }
+    ],
+    "timestamp": "2026-04-06T02:32:18.262446+00:00"
+  },
+  "943fb209ceabe4c089a85e2f82237a82": {
+    "final_output": "I don't have enough relevant content in the indexed summaries to answer this question. \n\nHowever, according to [Source 5], Pawe\u0142 from The Product Compass mentioned that Claude uses **CLAUDE.md**, which can be used to define custom rules and conventions for a project, but there is no mention of Python debugging tutorials.",
+    "metas": [
+      {
+        "author": "ByteByteGo",
+        "source_type": "newsletter",
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "title": "EP209: 12 Claude Code Features Every Engineer Should Know",
+        "date": "2026-04-04"
+      },
+      {
+        "title": "EP209: 12 Claude Code Features Every Engineer Should Know",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "source_type": "newsletter",
+        "tag": "AI/ML",
+        "date": "2026-04-04"
+      },
+      {
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "source_type": "newsletter",
+        "date": "2026-04-04",
+        "title": "EP209: 12 Claude Code Features Every Engineer Should Know",
+        "tag": "AI/ML"
+      },
+      {
+        "date": "2026-04-02",
+        "source_type": "newsletter",
+        "author": "Pawe\u0142 from The Product Compass",
+        "title": "The Claude Dispatch Guide: 48 Hours Running AI Agents From My Phone",
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-02.md"
+      },
+      {
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "title": "Three CLAUDE.md Blocks That Make Claude Get Smarter Every Session",
+        "tag": "AI/ML",
+        "date": "2026-04-02",
+        "author": "Pawe\u0142 from The Product Compass",
+        "source_type": "newsletter"
+      }
+    ],
+    "timestamp": "2026-04-06T02:33:08.054578+00:00"
+  },
+  "0fe82c01b74c7c701dbc65a86b4b76d7": {
+    "final_output": "There are several AI tools mentioned in the provided context chunks:\n\n1. Perplexity Computer [Source 3] - described as a high-signal option for cloud-native AI computer use, suitable when you want the power of computer-use agents without security setup friction.\n2. Model evaluation frameworks [Source 2] - part of repositories listed on GitHub that span AI agent orchestration frameworks, LLM fine-tuning toolkits, production RAG implementations, and more.\n\nAdditionally, Garry Tan (@garrytan) mentions a \"Pedro\" AI implementation at Brex [Source 4], but the specific details about this tool are not provided in the context chunks.",
+    "metas": [
+      {
+        "date": "2026-04-04",
+        "file": "twitter-insights/summaries/2026-04-04.md",
+        "tag": "AI/ML",
+        "source_type": "twitter",
+        "title": "Golden Age of Open Source via AI",
+        "author": "Garry Tan (@garrytan)"
+      },
+      {
+        "source_type": "newsletter",
+        "title": "EP207: Top 12 GitHub AI Repositories",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "tag": "AI/ML",
+        "date": "2026-04-02"
+      },
+      {
+        "source_type": "newsletter",
+        "title": "I Tested Perplexity Computer for Weeks. Here's the PM Playbook",
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "author": "Aakash Gupta from Product Growth",
+        "date": "2026-04-02"
+      },
+      {
+        "tag": "AI/ML",
+        "file": "twitter-insights/summaries/2026-04-03.md",
+        "author": "Garry Tan (@garrytan)",
+        "source_type": "twitter",
+        "title": "Pedro at Brex: AI implementation that will change how orgs run",
+        "date": "2026-04-03"
+      },
+      {
+        "title": "The Claude Dispatch Guide: 48 Hours Running AI Agents From My Phone",
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "source_type": "newsletter",
+        "date": "2026-04-02",
+        "author": "Pawe\u0142 from The Product Compass"
+      }
+    ],
+    "timestamp": "2026-04-06T02:33:50.881812+00:00"
+  },
+  "6f6cc56f9ece856af645ceb67c90a66f": {
+    "final_output": "According to [Source 2], Claude has two main types of extensions:\n\n1. **MCP (Multimodal Connection Points)**: connects Claude to external tools such as databases and third-party services.\n2. **Plugins**: extend Claude further with bundled skills, MCPs, and hooks.\n\nThese features enable users to integrate Claude with a wide range of tools and services, enhancing its capabilities and versatility. [Source 2]",
+    "metas": [
+      {
+        "date": "2026-04-03",
+        "tag": "AI/ML",
+        "source_type": "twitter",
+        "file": "twitter-insights/summaries/2026-04-03.md",
+        "author": "Elon Musk (@elonmusk)",
+        "title": "Grok Imagine \u2014 voice prompting for kids"
+      },
+      {
+        "source_type": "newsletter",
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-04.md",
+        "author": "ByteByteGo",
+        "title": "EP209: 12 Claude Code Features Every Engineer Should Know",
+        "date": "2026-04-04"
+      },
+      {
+        "title": "The Day The AI Heard Its First Voice",
+        "author": "Jay Stansell / Product Coalition",
+        "source_type": "newsletter",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "tag": "Business",
+        "date": "2026-04-02"
+      },
+      {
+        "author": "Elon Musk (@elonmusk)",
+        "source_type": "twitter",
+        "file": "twitter-insights/summaries/2026-04-03.md",
+        "date": "2026-04-03",
+        "tag": "AI/ML",
+        "title": "Grok Imagine \u2014 voice prompting for kids"
+      },
+      {
+        "date": "2026-04-02",
+        "tag": "Product",
+        "source_type": "newsletter",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "title": "The PLG Mirage",
+        "author": "Jay Stansell / Product Coalition"
+      }
+    ],
+    "timestamp": "2026-04-06T02:35:09.911406+00:00"
+  }
+}
