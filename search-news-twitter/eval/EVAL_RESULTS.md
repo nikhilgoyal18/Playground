@@ -1,3 +1,5 @@
+> **Historical analysis file (2026-04-06).** For current bug status see `bugs-and-fixes/BUGS.md`. For current pass rates, run `python3 eval/run_eval.py`.
+
 # Evaluation Results: 61 Test Cases
 
 **Date:** 2026-04-06  

@@ -1,3 +1,5 @@
+> **When to read:** Only when modifying `index.py` or changing the chunking strategy. Not needed for normal search usage or debugging queries.
+
 # Chunking Strategy: Bullet-Level Precision
 
 ## Overview
