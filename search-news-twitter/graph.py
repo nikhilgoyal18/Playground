@@ -40,6 +40,13 @@ CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown
 Strict template:
 {"intent_score": 8, "intent_understood": "User wants AI features", "retrieval_quality": "good", "reasoning": "Chunks directly answer", "recommendation": "proceed"}
 
+RETRIEVAL DISTANCE VALIDATION (CRITICAL):
+- Retrieval distance shown in brackets: (retrieval distance: X.XXX)
+- Distances < 0.3: Excellent match
+- Distances 0.3-0.5: Good match
+- Distances 0.5-0.65: Fair match (acceptable if content still relevant)
+- Distances > 0.65: Poor match → LIKELY OFF-TOPIC → Score ≤4
+
 TEMPORAL VALIDATION (CRITICAL):
 If the query asks about a FUTURE EVENT that hasn't occurred in the April 2026 knowledge base:
 - "Who won the 2026 FIFA World Cup?" → Future event (hasn't occurred)
@@ -48,20 +55,24 @@ If the query asks about a FUTURE EVENT that hasn't occurred in the April 2026 kn
 THEN SCORE = 0 (REJECT - send to web search for current data)
 
 Scoring guide:
-- 8-10: Chunks directly answer the query with complete, specific details
-- 6-7: Chunks address the CORE TOPIC (main subject, entities, concepts match query) but lack some details
-  * Example: Query "How did Shopify CEO use Karpathy Loop?" + Chunk "Shopify CEO used it on templating engine → 53% faster rendering" = SCORE 6-7 (answers core question, details are partial)
-- 5-7: Partial match where chunks cover the main intent even if not exhaustive
-- 3-4: Related domain but addresses a different subtopic or aspect
-- 0-2: Off-topic, not in knowledge base, OR future event
+- 8-10: Chunks directly answer the query with complete, specific details AND retrieval distance < 0.5
+- 6-7: Chunks address the CORE TOPIC with good matches (distance 0.3-0.5) but may lack some details
+  * Example: Query "How did Shopify CEO use Karpathy Loop?" + Chunk about it with distance 0.35 = SCORE 6-7
+- 5: Marginal match - chunks mention main entities BUT distance is high (0.5-0.65) OR details are very sparse
+- 3-4: Related domain but different subtopic OR distance > 0.65 (poor retrieval)
+- 0-2: Off-topic, future event, missing core entities, OR distance > 0.65 with zero semantic connection
 
-CORE TOPIC MATCHING (LENIENT):
-- If chunks mention the main entities/concepts from the query, score ≥5 (even if details are incomplete)
-  * "Shopify CEO" + "Karpathy Loop" in chunk → matches query about "Shopify CEO applying Karpathy Loop" → score ≥5
-  * "Claude" features in chunk → matches query about "Claude capabilities" → score ≥5
-- Accept semantic equivalence: "1:1 meeting structure" ≈ "meeting discussion topics"
-- Accept partial coverage: If chunks cover 50%+ of query intent, score ≥5
-- REJECT only when: Completely off-topic OR future event OR missing core entities/concepts"""
+SPECIFIC TERM MATCHING:
+- If query asks about a specific term/acronym/concept (e.g., "what is A2A?", "what is RAG?"), chunks MUST explicitly mention it
+  * Query "what is A2A in AI?" + chunks that say "AI agents" (without mentioning A2A) = Score 2-3 (REJECT - send to web)
+  * Query "how does RAG work?" + chunks mentioning RAG system = Score ≥6 (ACCEPT)
+- Semantic equivalence is OK for known concepts, but NOT for novel acronyms/terms
+
+CORE TOPIC MATCHING (WITH DISTANCE CONSIDERATION):
+- If chunks mention main entities AND distance < 0.5: score ≥6
+- If chunks mention main entities BUT distance > 0.65: score ≤4 (poor retrieval, reject)
+- Accept partial coverage ONLY if distance < 0.6 (good enough match to still be relevant)
+- REJECT when: Completely off-topic OR future event OR distance > 0.65 OR missing query's specific terms/acronyms"""
 
 SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
 
@@ -239,11 +250,15 @@ def internal_retrieve(state: SearchState) -> dict:
 def judge_gate(state: SearchState) -> dict:
     """LLM intent judge — raises on parse error to trigger RetryPolicy."""
     chunk_summaries = []
+    distances = state.get("distances", [])
+
     for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
         # Show first 200 chars of chunk for judge to evaluate
         preview = doc[:200] if len(doc) > 200 else doc
+        distance = distances[i-1] if i-1 < len(distances) else None
+        distance_str = f" (retrieval distance: {distance:.3f})" if distance is not None else ""
         chunk_summaries.append(
-            f"[Chunk {i}] {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{preview}"
+            f"[Chunk {i}]{distance_str} {meta['source_type'].upper()} | {meta['author']} | {meta['title']}\n{preview}"
         )
     chunks_text = "\n\n".join(chunk_summaries)
     user_msg = f"User query: {state['normalized_query']}\n\nRetrieved chunks:\n\n{chunks_text}"
