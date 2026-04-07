@@ -234,18 +234,6 @@ Each project creates summaries that feed into the central search index. You can 
 
 ## Future Roadmap
 
-- [ ] Hacker News Insights — Scan HN and extract trending topics
-- [ ] Automatic scheduling — Cron-based daily digest generation
-- [ ] Slack integration — Push digests directly to Slack
-- [ ] Saved searches — Bookmark frequent queries for fast recall
-- [ ] Trend detection — Identify emerging topics across 30+ days of digests
-- [ ] Multi-user support — Shared digest repository
-
----
-
-
-## Future Roadmap
-
 - [ ] Hacker News Insights — Extract trending tech topics
 - [ ] Automatic scheduling — Daily digest generation
 - [ ] Slack integration — Push digests to Slack
