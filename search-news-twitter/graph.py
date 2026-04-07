@@ -48,16 +48,20 @@ If the query asks about a FUTURE EVENT that hasn't occurred in the April 2026 kn
 THEN SCORE = 0 (REJECT - send to web search for current data)
 
 Scoring guide:
-- 8-10: Chunks directly match query intent AND event has occurred or is not time-bound
-- 5-7: Partial match (related concept, slightly different wording, covers 60%+ of query)
-- 3-4: Loosely related (same domain but different subtopic)
+- 8-10: Chunks directly answer the query with complete, specific details
+- 6-7: Chunks address the CORE TOPIC (main subject, entities, concepts match query) but lack some details
+  * Example: Query "How did Shopify CEO use Karpathy Loop?" + Chunk "Shopify CEO used it on templating engine → 53% faster rendering" = SCORE 6-7 (answers core question, details are partial)
+- 5-7: Partial match where chunks cover the main intent even if not exhaustive
+- 3-4: Related domain but addresses a different subtopic or aspect
 - 0-2: Off-topic, not in knowledge base, OR future event
 
-LENIENT MATCHING:
+CORE TOPIC MATCHING (LENIENT):
+- If chunks mention the main entities/concepts from the query, score ≥5 (even if details are incomplete)
+  * "Shopify CEO" + "Karpathy Loop" in chunk → matches query about "Shopify CEO applying Karpathy Loop" → score ≥5
+  * "Claude" features in chunk → matches query about "Claude capabilities" → score ≥5
 - Accept semantic equivalence: "1:1 meeting structure" ≈ "meeting discussion topics"
-- Accept partial coverage: If chunks cover 60%+ of query intent, score ≥5
-- Accept domain matches: If chunks discuss same general area (e.g., Claude features → Auto Mode), score ≥4
-- REJECT only when: Completely off-topic OR future event OR missing from all sources"""
+- Accept partial coverage: If chunks cover 50%+ of query intent, score ≥5
+- REJECT only when: Completely off-topic OR future event OR missing core entities/concepts"""
 
 SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
 
@@ -301,12 +305,15 @@ def generate_answer(state: SearchState) -> dict:
 
     answer = response.message.content
 
-    # Check if LLM says it has no content
-    no_content = "don't have enough relevant content" in answer.lower()
-
-    # If judge already scored ≥8, trust the judge over the LLM's conservatism
-    if no_content and (state.get("judge_score") or 0) >= 8:
-        no_content = False
+    # Check if LLM says it has no content (multiple patterns for robustness)
+    answer_lower = answer.lower()
+    no_content = any([
+        "don't have enough relevant content" in answer_lower,
+        "couldn't find" in answer_lower and "information" in answer_lower,
+        "i don't have enough" in answer_lower,
+        "not enough information" in answer_lower,
+        "no information" in answer_lower and ("summaries" in answer_lower or "context" in answer_lower),
+    ])
 
     tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
     tokens_out = getattr(response, 'eval_count', 0) or 0
