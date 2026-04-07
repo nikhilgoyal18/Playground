@@ -177,6 +177,24 @@
             font-family: "Monaco", "Menlo", monospace;
         }
 
+        .search-id {
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .search-id:hover {
+            background: #e0e0e0;
+        }
+
+        .search-id.copied {
+            background: #d4edda;
+        }
+
         .input-area {
             background: white;
             border-top: 1px solid #e0e0e0;
@@ -363,6 +381,10 @@
                 logDetails.className = "log-details";
                 logDetails.innerHTML = `
                     <div class="log-row">
+                        <div class="log-label">Search ID:</div>
+                        <div class="log-value"><span class="search-id" data-search-id="${metadata.search_id}">${metadata.search_id}</span></div>
+                    </div>
+                    <div class="log-row">
                         <div class="log-label">Path:</div>
                         <div class="log-value">${metadata.path || "unknown"}</div>
                     </div>
@@ -407,6 +429,21 @@
                         logToggle.classList.remove("collapsed");
                         logToggle.classList.add("expanded");
                     }
+                });
+
+                // Add search-id copy handler
+                const searchIdElements = logDetails.querySelectorAll(".search-id");
+                searchIdElements.forEach(el => {
+                    el.addEventListener("click", async (e) => {
+                        const searchId = el.getAttribute("data-search-id");
+                        try {
+                            await navigator.clipboard.writeText(searchId);
+                            el.classList.add("copied");
+                            setTimeout(() => el.classList.remove("copied"), 2000);
+                        } catch (err) {
+                            console.error("Failed to copy:", err);
+                        }
+                    });
                 });
 
                 logFooter.appendChild(logToggle);
@@ -463,6 +500,7 @@
                     addMessage(`Error: ${data.error || "Unknown error"}`, false);
                 } else {
                     addMessage(data.answer || "No answer generated", false, {
+                        search_id: data.search_id,
                         sources: data.sources || [],
                         path: data.path,
                         tokens_in: data.tokens_in,

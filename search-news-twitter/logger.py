@@ -11,6 +11,7 @@ DB_PATH = Path(__file__).parent / "data" / "search_logs.db"
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS searches (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_id                   TEXT UNIQUE,
     timestamp                   TEXT NOT NULL,
     query                       TEXT NOT NULL,
     normalized_query            TEXT,
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS searches (
 
 INSERT_SQL = """
 INSERT INTO searches (
-    timestamp, query, normalized_query, duration_ms,
+    search_id, timestamp, query, normalized_query, duration_ms,
     explicit_web_detected,
     internal_attempted, top_chunk_distance, chunks_passed_threshold,
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
@@ -57,7 +58,7 @@ INSERT INTO searches (
     web_attempted, web_was_fallback, web_result_count, web_succeeded,
     final_output, error, total_llm_tokens_in, total_llm_tokens_out
 ) VALUES (
-    :timestamp, :query, :normalized_query, :duration_ms,
+    :search_id, :timestamp, :query, :normalized_query, :duration_ms,
     :explicit_web_detected,
     :internal_attempted, :top_chunk_distance, :chunks_passed_threshold,
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
@@ -86,6 +87,7 @@ def save_log(log: dict):
     Caller wraps this in try/except — failures must not crash the search flow.
     """
     row = {
+        "search_id": log.get("search_id"),
         "timestamp": log.get("timestamp"),
         "query": log.get("query"),
         "normalized_query": log.get("normalized_query"),

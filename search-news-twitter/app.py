@@ -5,6 +5,7 @@ Serves a web interface at http://localhost:5000 for semantic search across diges
 
 import time
 import json
+import uuid
 from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template
 
@@ -68,6 +69,9 @@ def search():
     if not query:
         return jsonify({"error": "Query cannot be empty"}), 400
 
+    # Generate unique search ID
+    search_id = str(uuid.uuid4())[:8].upper()
+
     # Build initial state (mirrors search.py main())
     timestamp = datetime.now(timezone.utc).isoformat()
     initial_state = {
@@ -129,6 +133,7 @@ def search():
 
     # Build response
     response = {
+        "search_id": search_id,
         "answer": final_state.get("final_output") or "",
         "sources": sources,
         "tokens_in": final_state.get("total_llm_tokens_in", 0),
@@ -143,6 +148,7 @@ def search():
     try:
         distances = final_state.get("distances", [])
         log = {
+            "search_id": search_id,
             "timestamp": timestamp,
             "query": query,
             "normalized_query": final_state.get("normalized_query"),
