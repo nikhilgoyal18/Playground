@@ -1,432 +1,203 @@
 # AI Playground 🚀
 
-A collection of intelligent automation tools for extracting insights from newsletters, social media, and community forums. Each project is self-contained, designed to help you stay informed and identify opportunities across your digital channels.
+A collection of intelligent automation tools for extracting insights from newsletters, social media, and community forums. Each project follows a unified strategy: **gather ambient intelligence from dispersed sources, organize by signal, and make it searchable**.
 
-**Status:** Active development | **Model:** Claude API (3.5 Sonnet) + Local embeddings + Local LLM (Ollama) | **Last Updated:** 2026-04-05
+**Vision:** Turn information overload into actionable insights by combining topic classification, semantic search, and opportunity ranking — all locally when possible.
+
+**Status:** Active development | **Last Updated:** 2026-04-06
+
+---
+
+## Strategic Overview
+
+### The Problem
+You're exposed to newsletters, Twitter, Reddit, and other information channels daily. Information is scattered. Important signals are buried. It's hard to:
+- Recall what you've read about a specific topic
+- Find patterns across sources
+- Identify market opportunities from community discussions
+- Know what's timely (latest news) vs. archived knowledge
+
+### The Solution
+**Four complementary projects that work together:**
+
+1. **Newsletter Insights** — Turn inbox chaos into organized summaries
+2. **Twitter Insights** — Capture timeline insights before they disappear
+3. **Reddit Insights** — Mine community feedback for problems and opportunities
+4. **Search News & Twitter** — Unified semantic search across all sources
+
+Each project is independent but composable. You can run one or all four. Their outputs feed into each other.
 
 ---
 
 ## Projects Overview
 
-| Project | Purpose | Key Features |
-|---------|---------|--------------|
-| [Newsletter Insights](#newsletter-insights) | Auto-digest newsletters from Gmail | Topic classification, state tracking, scheduled runs |
-| [Twitter Insights](#twitter-insights) | Auto-digest your Twitter home timeline | Tweet filtering, topic organization, stateless tracking |
-| [Reddit Insights](#reddit-insights) | Extract tech problems from subreddits | Problem ranking, market research, opportunity scoring |
-| [Search News & Twitter](#search-news-twitter) | Semantic search across all digests | RAG-powered, local vector DB, cross-source queries |
+| Project | Purpose | Strategy |
+|---------|---------|----------|
+| **Newsletter Insights** | Auto-digest newsletters from Gmail | Classify by topic, track state, organize for later recall |
+| **Twitter Insights** | Capture your Twitter home timeline | Filter signal, organize by topic, preserve before posts disappear |
+| **Reddit Insights** | Extract tech problems from communities | Rank by engagement, research solutions, score market opportunities |
+| **Search News & Twitter** | Unified search across digests | RAG-powered semantic search with intelligent fallback to live web |
 
 ---
 
 ## Newsletter Insights
 
-**Status:** ✅ Fully operational | **Setup Time:** ~5 min
+**Status:** ✅ Fully operational
 
-Connects to your Gmail and surfaces the most important learnings from newsletters — organized by topic, completely on demand.
+Turn your Gmail inbox of newsletters into organized, topic-based summaries. Rather than subscribing to dozens of newsletters and drowning in inbox volume, auto-digest them daily and browse by topic.
 
-### How It Works
+### Strategy
 
-1. **Scan** → Fetches new newsletters from Gmail using the Gmail API
-2. **Classify** → Groups content by topic using Claude's analysis
-3. **Summarize** → Writes a human-readable digest organized by subject
+- **Scan** incoming newsletters (Substack, newsletters, etc.)
+- **Classify** by topic using Claude analysis
+- **Organize** by subject in a readable markdown digest
+- **Track state** to process only new newsletters on future runs
 
-Only emails not previously scanned are processed. State is tracked automatically in `data/scanned.json`, so future runs only process new newsletters.
+Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Persistent state in `data/scanned.json` prevents reprocessing.
 
-### One-Time Setup
+### Key Insight
 
-**Step 1:** Install dependencies
-```bash
-cd newsletter-insights
-pip install -r requirements.txt
-```
-
-**Step 2:** Create Google Cloud credentials
-- Go to [console.cloud.google.com](https://console.cloud.google.com)
-- Create a new project
-- Enable the **Gmail API** (APIs & Services → Library)
-- Create OAuth 2.0 credentials:
-  - Type: Desktop application
-  - Scopes: `https://www.googleapis.com/auth/gmail.readonly`
-  - Download JSON as `credentials.json` in the `newsletter-insights/` folder
-
-**Step 3:** Authenticate
-```bash
-python scan_newsletters.py --auth
-```
-This opens a browser to authorize Gmail access and creates `token.json` for future runs.
-
-### Usage
-
-Invoke via Claude Code skill:
-```
-/newsletter-insights
-```
-
-Or run directly:
-```bash
-python scan_newsletters.py
-```
-
-Output: A markdown digest in `summaries/YYYY-MM-DD.md` containing all new newsletters grouped by topic.
-
-### Configuration
-
-The script detects newsletters using Gmail's query:
-```
-from:@substack.com OR subject:newsletter
-```
-
-You can modify `scan_newsletters.py` to add additional newsletter sources.
-
-### File Structure
-```
-newsletter-insights/
-├── scan_newsletters.py        # Gmail API integration
-├── credentials.json           # OAuth credentials (git-ignored)
-├── token.json                 # Auth token cache (git-ignored)
-├── data/scanned.json          # Processed email ID tracking
-└── summaries/                 # Generated digests (YYYY-MM-DD.md)
-```
+State-driven processing. Once a newsletter is scanned, it's marked complete. Future runs only process new emails. This prevents duplicate work and scales efficiently.
 
 ---
 
 ## Twitter Insights
 
-**Status:** ✅ Fully operational | **Setup Time:** ~3 min
+**Status:** ✅ Fully operational
 
-Monitors your Twitter home timeline and surfaces the most valuable insights — organized by topic.
+Capture insights from your Twitter timeline before they disappear. Tweets are ephemeral — they age fast and become unsearchable. This project preserves the signal.
 
-### How It Works
+### Strategy
 
-1. **Fetch** → Pulls new tweets from your home timeline using the twikit library
-2. **Filter** → Excludes retweets, only processes original tweets
-3. **Classify** → Organizes content by topic using Claude
-4. **Summarize** → Writes a digest to `summaries/YYYY-MM-DD.md`
+- **Fetch** original tweets from your home timeline (filter out retweets)
+- **Classify** by topic using Claude analysis
+- **Organize** in daily digests by subject
+- **Track state** to process only new tweets on future runs
 
-State is tracked in `data/scanned.json` — only new tweets are processed on subsequent runs.
+Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Persistent state in `data/scanned.json` prevents reprocessing.
 
-### One-Time Setup
+### Key Insight
 
-**Step 1:** Install dependencies
-```bash
-cd twitter-insights
-pip install -r requirements.txt
-```
-
-**Step 2:** Get your Twitter cookies
-- Open [twitter.com](https://twitter.com) in your browser (must be logged in)
-- Open DevTools (F12 or Cmd+Option+I)
-- Navigate to **Application** → **Cookies** → `https://twitter.com`
-- Copy the **Value** of: `auth_token` and `ct0`
-
-**Step 3:** Create `.env` file
-Create `twitter-insights/.env`:
-```
-AUTH_TOKEN=your_auth_token_here
-CT0=your_ct0_here
-```
-
-**Step 4:** Verify authentication
-```bash
-python3 fetch_tweets.py --auth-check
-```
-
-Expected output: `Auth check passed — cookie is valid.`
-
-### Usage
-
-Invoke via Claude Code skill:
-```
-/twitter-insights
-```
-
-Or run directly:
-```bash
-python3 fetch_tweets.py
-```
-
-Output: A markdown digest in `summaries/YYYY-MM-DD.md` containing all new tweets grouped by topic.
-
-### Cookie Management
-
-The `auth_token` cookie typically remains valid for weeks to months. If you encounter authentication errors, simply repeat steps 2-3 above with a fresh cookie value.
-
-### File Structure
-```
-twitter-insights/
-├── fetch_tweets.py            # Timeline fetching via twikit
-├── .env                       # Auth credentials (git-ignored)
-├── data/scanned.json          # Processed tweet ID tracking
-└── summaries/                 # Generated digests (YYYY-MM-DD.md)
-```
+Stateless in the sense that tweets don't have inherent ordering — you process what's available today. But you track which tweets you've already seen to avoid duplicates and focus on new signal.
 
 ---
 
 ## Reddit Insights
 
-**Status:** ✅ Fully operational | **Setup Time:** ~5 min
+**Status:** ✅ Fully operational
 
-Market research tool for discovering what problems people face in tech communities. Automatically scans subreddits, ranks problems by engagement, researches existing solutions, and identifies business opportunities.
+Mine tech communities for real problems people face, then research existing solutions to identify business opportunities.
 
-### How It Works
+### Strategy
 
-**Stage 1-3: Problem Extraction**
-- Fetches posts from your configured subreddits
-- Extracts tech/software problems from post titles and top comments
-- Ranks problems by engagement (upvotes, comment count)
-- Outputs: Human-readable ranked list + structured JSON cache
+**Stage 1: Problem Extraction**
+- Scan configured subreddits for posts and comments
+- Extract tech problems mentioned in titles and top comments
+- Rank problems by community engagement (upvotes, comment count, signal strength)
+- Output: Ranked problem list with engagement metrics
 
-**Stage 4-5: Market Research**
-- Reads cached problems from Stage 1-3
-- Searches for existing solutions across Reddit
-- Analyzes solution quality, maturity, and market gaps
-- Scores each problem's business opportunity potential
-- Outputs: Detailed market research report with opportunity rankings
+**Stage 2: Market Research**
+- Take extracted problems and search Reddit for existing solutions
+- Analyze solution quality, maturity, and market saturation
+- Score each problem for business opportunity potential
+- Output: Market research report with opportunity rankings
 
-### One-Time Setup
+### Key Insight
 
-**Step 1:** Install the Reddit MCP server
-```bash
-claude mcp add --transport stdio reddit-mcp-buddy -s user -- npx -y reddit-mcp-buddy
-```
-
-Verify installation:
-```bash
-claude mcp list
-```
-
-The `reddit-mcp-buddy` MCP is read-only and uses Reddit's public API — no Reddit account or API key required.
-
-**Step 2:** Configure subreddits
-
-Edit `data/subreddits.json`:
-```json
-{
-  "subreddits": [
-    { "name": "programming", "limit": 30, "sort": "hot" },
-    { "name": "SideProject", "limit": 25, "sort": "hot" },
-    { "name": "learnprogramming", "limit": 25, "sort": "hot" }
-  ],
-  "top_comments_per_post": 5,
-  "min_score": 10
-}
-```
-
-**Configuration options:**
-- `sort`: `hot`, `new`, `top`, or `rising`
-- `limit`: Max posts per subreddit (keep ≤ 50 for context efficiency)
-- `min_score`: Skip posts below this upvote threshold (reduces noise)
-- `top_comments_per_post`: How many top comments to analyze per post
-
-### Usage
-
-**Extract problems from subreddits:**
-```
-/reddit-problems
-```
-
-**Research problems and identify opportunities:**
-```
-/reddit-research
-```
-
-Or target specific problems:
-```
-/reddit-research research problems 1, 3, 5
-```
-
-### Outputs
-
-- `problems/YYYY-MM-DD-problems.md` — Ranked list of discovered problems
-- `data/problems.json` — Structured cache for research phase
-- `problems/YYYY-MM-DD-research.md` — Market research report with opportunity scores
-
-### File Structure
-```
-reddit-insights/
-├── CLAUDE.md                  # Project documentation
-├── data/
-│   ├── scanned.json           # Processed post IDs
-│   ├── subreddits.json        # Subreddit configuration
-│   └── problems.json          # Extracted problems cache
-└── problems/
-    ├── YYYY-MM-DD-problems.md # Ranked problems
-    └── YYYY-MM-DD-research.md # Market research report
-```
-
-### MCP Tools Used
-- `browse_subreddit` — Fetch posts by sort order
-- `get_post_details` — Fetch post with top comments
-- `search_reddit` — Search for existing solutions
+Problems ranked by engagement are proxy signals for real pain. If 100+ people upvoted a problem, it matters. Then research whether solutions exist, are mature, or if there's a gap. This two-stage approach converts community signals into business validation.
 
 ---
 
 ## Search News & Twitter
 
-**Status:** ✅ Fully operational | **Setup Time:** ~10 min (first run includes dependency downloads)
+**Status:** ✅ Fully operational
 
-Semantic search across your newsletter and Twitter digests with intelligent fallback to live web search. Uses LangGraph for orchestration, local embeddings (ChromaDB), local LLM judge (Ollama), and DuckDuckGo for web results. Built-in typo correction and per-node retry logic.
+Unified semantic search across all your newsletter and Twitter digests with intelligent fallback to live web search. Ask questions once, get answers from both archived knowledge and current web data.
 
-### How It Works
+### Strategy
 
-Powered by **LangGraph** state machine with 8 nodes and typed state:
+**Three-part search pipeline:**
 
-1. **Query Normalize** → Fixes typos in your query via Ollama before anything else (e.g., "Anthorpic" → "Anthropic")
-2. **Index Sync** → Processes new summary files from Newsletter Insights and Twitter Insights (bullet-level chunks for precision)
-3. **Detect Explicit Web** → Checks for keywords like "latest", "news", "stock" that signal live data
-4. **Route** → If explicit web detected: jump to web search. Otherwise: try internal summaries first
-5. **Retrieve** → Embeds normalized query locally with `all-MiniLM-L6-v2` and searches ChromaDB by semantic similarity
-6. **Judge** → LLM validates retrieved chunks match your intent (score 0-10; blocks if < 5). **Retries up to 3 times** on JSON parse errors
-7. **Generate Answer** → Produces cited response from internal summaries. **Retries up to 2 times** on connection errors
-8. **Web Search** → DuckDuckGo fallback if internal finds nothing. **Retries up to 3 times** on rate limits
+1. **Smart Routing**
+   - Detect if query needs current/live data (keywords: "latest", "today", "breaking", "stock price")
+   - If live data needed → skip internal, go straight to web
+   - If historical/knowledge question → try internal first
 
-Every decision is logged to SQLite. Only external API call is Ollama (local) for answer generation.
+2. **Internal Search (Knowledge Base)**
+   - Embed query locally using semantic embeddings
+   - Search ChromaDB vector database of newsletter/Twitter summaries
+   - Judge retrieved chunks with LLM to validate semantic match (0-10 score)
+   - Only proceed if confidence ≥5 (high relevance)
 
-### One-Time Setup
+3. **Fallback to Web**
+   - If internal search fails or judge rejects → query DuckDuckGo for live results
+   - Summarize web results and cite sources
+   - Ensures you get current data when knowledge base is incomplete
 
-**Step 1:** Install Ollama (optional, but recommended)
-```bash
-# Download from ollama.com
-ollama pull llama3.2
-```
-This enables local LLM inference for advanced features. Size: ~2 GB.
+### Key Insight
 
-**Step 2:** Install Python dependencies
-```bash
-cd search-news-twitter
-pip install -r requirements.txt
-```
+**Sequential fallback with intent validation.** Try cheap, fast internal search first (local vector DB + judgement gate). If that fails, fallback to web search. But be intelligent about routing — if you ask for "today's stock price", skip internal entirely because you need current data, not archived knowledge.
 
-Note: `sentence-transformers` installs PyTorch (~800 MB one-time). The embedding model (`all-MiniLM-L6-v2`, ~22 MB) is cached locally after first run.
-
-**Step 3:** Build the initial index
-```bash
-python3 index.py
-```
-
-This scans `newsletter-insights/summaries/` and `twitter-insights/summaries/`, chunks by topic, and builds the ChromaDB vector store.
-
-### Usage
-
-Run from the `search-news-twitter/` directory:
-
-```bash
-# Basic search (tries internal, falls back to web if needed)
-python3 search.py --query "database indexing trade-offs"
-
-# Explicit web query (skips internal, goes straight to web)
-python3 search.py --query "latest news about AI regulation"
-python3 search.py --query "today's MSFT stock price"
-
-# Filter internal search to one source (only if internal is attempted)
-python3 search.py --query "AI agent tools" --source twitter
-python3 search.py --query "system design patterns" --source newsletter
-
-# Retrieve more chunks from internal search
-python3 search.py --query "RAG retrieval" --top-k 8
-
-# Filter internal search by date
-python3 search.py --query "startup product strategy" --date-from 2026-04-01
-```
-
-**Keywords that trigger direct web search** (no internal attempt):
-`latest`, `breaking`, `news`, `current`, `stock`, `price`, `today`, `live`, `recently`, `trending`
-
-### Analytics & Logging
-
-Every search is logged to `data/search_logs.db`. Analyze with SQL:
-
-```bash
-# Fallback rate
-sqlite3 data/search_logs.db "SELECT 100.0 * SUM(web_was_fallback) / COUNT(*) as fallback_pct FROM searches WHERE internal_attempted"
-
-# Judge score distribution
-sqlite3 data/search_logs.db "SELECT judge_score, COUNT(*) FROM searches WHERE judge_attempted GROUP BY judge_score"
-
-# Average duration by path
-sqlite3 data/search_logs.db "SELECT CASE WHEN explicit_web_detected THEN 'web' WHEN internal_succeeded THEN 'internal' ELSE 'fallback' END, AVG(duration_ms) FROM searches GROUP BY 1"
-```
-
-### How Chunking Works
-
-Each **bullet point** under a `###` topic heading becomes its own searchable chunk (bullet-level precision for focused retrieval). The topic heading and author are retained as context in the embedding.
-
-Example: "EP209: 12 Claude Code Features" section with 6 bullets → 6 separate chunks, each with the feature as the core signal plus topic context.
-
-Chunk metadata:
-- **source_type** — `newsletter` or `twitter`
-- **date** — From filename (YYYY-MM-DD)
-- **author** — Newsletter sender or Twitter handle
-- **title** — Topic heading
-- **tag** — Category (AI/ML, Engineering, Product, Business, Other)
-
-New summary files are automatically discovered and indexed on the next search run.
-
-### File Structure
-```
-search-news-twitter/
-├── search.py                  # CLI entry point (thin wrapper around graph.invoke())
-├── graph.py                   # LangGraph orchestration: SearchState + 8 nodes + retry policies
-├── index.py                   # Parses summaries, chunks at bullet level, embeds, upserts to ChromaDB
-├── web_search.py              # DuckDuckGo integration + Ollama result summarization
-├── logger.py                  # SQLite persistence (no external DB needed)
-├── data/indexed.json          # Tracks which summary files are indexed (prevents re-processing)
-├── data/search_logs.db        # SQLite audit trail (routing, typo corrections, judge scores, retries, durations)
-├── db/chroma/                 # ChromaDB persistent vector store (auto-created, do not commit)
-└── requirements.txt           # Dependencies: chromadb, sentence-transformers, ollama, ddgs, langgraph
-```
+All decisions logged to SQLite for later analysis: routing choices, judge scores, fallback rates, query durations.
 
 ---
 
-## Getting Started
+## How They Work Together
 
-### Quick Start (All Projects)
-
-```bash
-# Clone and enter the playground
-git clone <this-repo>
-cd AI/Playground
-
-# Start with any project
-cd newsletter-insights
-pip install -r requirements.txt
-# ... follow project-specific setup
-
-# Or invoke via Claude Code skills
-/newsletter-insights
-/twitter-insights
-/reddit-problems
-/reddit-research
-/search-news-twitter
+```
+Gmail (newsletters) ──┐
+                      ├──> Newsletter Insights ──────┐
+                      │    (organize by topic)       │
+                      │                               │
+Twitter (timeline) ───┼──> Twitter Insights ────────┼──> Indexed Summaries (ChromaDB)
+                      │    (capture & organize)      │
+                      │                               │
+                      ├──────────────────────────────┤
+                                                     └──> Search News & Twitter
+Reddit (communities) ─┴──> Reddit Insights              (semantic search + web fallback)
+                           (rank problems, research)
 ```
 
-### Global Conventions
-
-- **Skills** — Invoke with `/skill-name` from Playground root (e.g., `/twitter-insights`)
-- **Project state** — Tracking files live in `<project>/data/`
-- **Outputs** — Summaries and reports in `<project>/summaries/` or `<project>/problems/`
-- **Secrets** — Never commit `credentials.json`, `token.json`, `.env`, or API keys
+Each project creates summaries that feed into the central search index. You can use projects independently or together. The key: **everything is searchable and organized by topic**.
 
 ---
 
-## Architecture & Design
+## Global Conventions
 
-### Technology Stack
+- **Skills** — Invoke with `/skill-name` from Playground root
+- **Project state** — Tracking files in `<project>/data/`
+- **Outputs** — Summaries in `<project>/summaries/`, reports in `<project>/problems/`
+- **Secrets** — Never commit `.env`, `credentials.json`, `token.json`, or API keys
+- **Documentation** — Each project has its own `CLAUDE.md` with detailed setup
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **LLM** | Claude 3.5 Sonnet (API) | Analysis, classification, summarization |
-| **Orchestration** | Claude Code / MCP | Tool invocation, state management |
-| **Data Sources** | Gmail, Twitter, Reddit | Newsletter, tweet, and community insights |
-| **Embeddings** | sentence-transformers (local) | Semantic search without external APIs |
-| **Vector Store** | ChromaDB | Persistent indexing of digests |
-| **Infrastructure** | Python, Ollama (optional) | Local-first processing |
+---
 
-### Key Design Principles
+## Design Philosophy
 
-1. **Local-first** — Minimize external dependencies. Embeddings and inference happen locally when possible.
-2. **Stateful** — Track processed content to avoid re-processing (scanned.json, indexed.json).
-3. **Composable** — Each project is independent but digestible together via Search News & Twitter.
-4. **Low-friction** — Setup is minimal. Most tools require only Python and one cloud API connection.
+### Principles
+
+**1. Local-First**
+- Embeddings computed locally (sentence-transformers)
+- Inference on local LLM when possible (Ollama)
+- Minimal external API dependencies (only Claude for analysis)
+- Fast, private, cost-effective
+
+**2. Stateful Processing**
+- Track what you've seen (newsletters, tweets, posts)
+- Process only new items on subsequent runs
+- Prevents duplicate work and enables incremental updates
+- Scalable without re-processing history
+
+**3. Composable & Independent**
+- Each project works standalone
+- Or combine outputs via Search News & Twitter
+- No hard dependencies between projects
+- Mix and match based on your needs
+
+**4. Topic-Based Organization**
+- All content organized by topic (AI/ML, Engineering, Product, Business, etc.)
+- Makes browsing and discovery natural
+- Semantic search works better with topic context
 
 ---
 
@@ -449,61 +220,30 @@ pip install -r requirements.txt
 
 ---
 
-## Troubleshooting
 
-### Newsletter Insights
+## Future Roadmap
 
-**Issue:** `credentials.json not found`
-- **Solution:** Complete the Google Cloud setup steps in the [Newsletter Insights section](#newsletter-insights)
-
-**Issue:** `Auth token expired`
-- **Solution:** Run `python scan_newsletters.py --auth` again to refresh
-
-### Twitter Insights
-
-**Issue:** `Auth check failed`
-- **Solution:** Copy fresh cookies from DevTools (they expire after a few months)
-
-**Issue:** No tweets being fetched
-- **Solution:** Verify you're logged in on twitter.com and have followed accounts
-
-### Reddit Insights
-
-**Issue:** `reddit-mcp-buddy not found`
-- **Solution:** Run `claude mcp list` to verify it's installed. Re-run the MCP install command if needed.
-
-### Search News & Twitter
-
-**Issue:** ChromaDB errors on first run
-- **Solution:** Delete `db/chroma/` and re-run `python3 index.py`
-
-**Issue:** `sentence-transformers` installation hangs
-- **Solution:** This is normal the first time (PyTorch is large). Be patient or run with verbose flags: `pip install -v -r requirements.txt`
+- [ ] Hacker News Insights — Extract trending tech topics
+- [ ] Automatic scheduling — Daily digest generation
+- [ ] Slack integration — Push digests to Slack
+- [ ] Saved searches — Bookmark and re-run frequent queries
+- [ ] Trend detection — Identify emerging topics over time
+- [ ] Multi-source cross-reference — Show which sources discuss the same topic
 
 ---
 
-## Contributing
+## For Implementation Details
 
-This is a personal playground for AI-powered tools. If you'd like to adapt any of these projects for your own use:
+Each project has its own `CLAUDE.md` with:
+- Detailed setup instructions
+- Configuration options
+- Troubleshooting guides
+- Advanced usage patterns
 
-1. Fork the repository
-2. Create your own project subfolder following the same structure
-3. Add a `CLAUDE.md` describing the project
-4. Update the Projects table above
-5. Open a PR if you'd like to share improvements
+Start there for specific project help.
 
 ---
 
 ## License
 
-MIT — Feel free to use and adapt these tools for your own projects.
-
----
-
-## Questions?
-
-- 📚 See individual project `CLAUDE.md` files for detailed setup
-- 🐛 Check the [Troubleshooting](#troubleshooting) section
-- 🔗 Review the Architecture section to understand how projects fit together
-
-**Happy exploring!** 🎯
+MIT — Use and adapt these tools freely for your own projects.
