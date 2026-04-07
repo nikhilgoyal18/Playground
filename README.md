@@ -46,18 +46,18 @@ Each project is independent but composable. You can run one or all four. Their o
 
 Turn your Gmail inbox of newsletters into organized, topic-based summaries. Rather than subscribing to dozens of newsletters and drowning in inbox volume, auto-digest them daily and browse by topic.
 
-### Strategy
+### Strategy & Implementation
 
-- **Scan** incoming newsletters (Substack, newsletters, etc.)
-- **Classify** by topic using Claude analysis
-- **Organize** by subject in a readable markdown digest
-- **Track state** to process only new newsletters on future runs
+- **Fetch** — Scan Gmail for newsletters using Gmail API (Substack, newsletter mailing lists, etc.)
+- **Classify** — Use Claude to group content by topic (AI/ML, Engineering, Product, Business, Other)
+- **Summarize** — Generate readable markdown digests organized by topic with key learnings
+- **State Tracking** — Track processed email IDs in `data/scanned.json` to avoid reprocessing
 
-Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Persistent state in `data/scanned.json` prevents reprocessing.
+Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Persistent state prevents reprocessing and enables efficient incremental updates.
 
-### Key Insight
+### Architecture
 
-State-driven processing. Once a newsletter is scanned, it's marked complete. Future runs only process new emails. This prevents duplicate work and scales efficiently.
+**State-driven incremental processing:** Email IDs are tracked. Only new, unprocessed emails are fetched and analyzed. This scales efficiently — you're never re-analyzing old newsletters.
 
 ---
 
@@ -65,20 +65,20 @@ State-driven processing. Once a newsletter is scanned, it's marked complete. Fut
 
 **Status:** ✅ Fully operational
 
-Capture insights from your Twitter timeline before they disappear. Tweets are ephemeral — they age fast and become unsearchable. This project preserves the signal.
+Capture insights from your Twitter timeline before they disappear. Tweets are ephemeral — they age fast and become unsearchable. This project preserves the signal by converting timeline noise into organized topic-based summaries.
 
-### Strategy
+### Strategy & Implementation
 
-- **Fetch** original tweets from your home timeline (filter out retweets)
-- **Classify** by topic using Claude analysis
-- **Organize** in daily digests by subject
-- **Track state** to process only new tweets on future runs
+- **Fetch** — Pull original tweets from home timeline (filter retweets to focus on primary signal)
+- **Classify** — Use Claude to organize by topic
+- **Summarize** — Generate daily digests organized by subject with key insights
+- **State Tracking** — Track processed tweet IDs in `data/scanned.json`
 
-Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Persistent state in `data/scanned.json` prevents reprocessing.
+Output: Daily digests in `summaries/YYYY-MM-DD.md` organized by topic. Preserved copies of tweets before they age out of search.
 
-### Key Insight
+### Architecture
 
-Stateless in the sense that tweets don't have inherent ordering — you process what's available today. But you track which tweets you've already seen to avoid duplicates and focus on new signal.
+**Tweet-level state tracking:** Each tweet ID tracked to prevent duplicates. Tweets themselves are ephemeral, but summaries persist. Enables timeline analysis over time without losing signal to Twitter's ordering algorithms.
 
 ---
 
@@ -86,25 +86,32 @@ Stateless in the sense that tweets don't have inherent ordering — you process 
 
 **Status:** ✅ Fully operational
 
-Mine tech communities for real problems people face, then research existing solutions to identify business opportunities.
+Mine tech communities for real problems people face, then research existing solutions to identify business opportunities. Two-stage pipeline: problem extraction with engagement ranking, then market research with opportunity scoring.
 
-### Strategy
+### Strategy & Implementation
 
-**Stage 1: Problem Extraction**
-- Scan configured subreddits for posts and comments
-- Extract tech problems mentioned in titles and top comments
-- Rank problems by community engagement (upvotes, comment count, signal strength)
-- Output: Ranked problem list with engagement metrics
+**Stage 1: Problem Extraction & Ranking**
+- Scan configured subreddits (hot, new, top posts) for tech problems
+- Extract problems from post titles and top comments
+- Rank by engagement signals (upvotes, comment count, discussion volume)
+- Output: Ranked problem list with metrics
 
-**Stage 2: Market Research**
-- Take extracted problems and search Reddit for existing solutions
-- Analyze solution quality, maturity, and market saturation
-- Score each problem for business opportunity potential
-- Output: Market research report with opportunity rankings
+**Stage 2: Market Research & Opportunity Scoring**
+- Search Reddit for existing solutions to extracted problems
+- Analyze solution maturity, adoption, market saturation
+- Score business opportunity potential for each problem (high engagement + weak solutions = high opportunity)
+- Output: Market research report with ranked opportunities
 
-### Key Insight
+### Architecture
 
-Problems ranked by engagement are proxy signals for real pain. If 100+ people upvoted a problem, it matters. Then research whether solutions exist, are mature, or if there's a gap. This two-stage approach converts community signals into business validation.
+**Engagement-Based Ranking:**
+Problems ranked by community engagement (upvotes, comments) as proxy for real pain points. 100+ upvotes signals genuine demand.
+
+**Two-Stage Caching:**
+Problem extraction cached in `data/problems.json`. Market research runs independently against cached problems. Enables re-research without re-extraction.
+
+**Opportunity Scoring:**
+Problems scored on two axes: (1) community demand (engagement), (2) solution availability (research). High demand + low availability = high opportunity.
 
 ---
 
@@ -112,33 +119,42 @@ Problems ranked by engagement are proxy signals for real pain. If 100+ people up
 
 **Status:** ✅ Fully operational
 
-Unified semantic search across all your newsletter and Twitter digests with intelligent fallback to live web search. Ask questions once, get answers from both archived knowledge and current web data.
+Unified semantic search across all your newsletter and Twitter digests with intelligent fallback to live web search. Built on **RAG (Retrieval-Augmented Generation)** architecture with local embeddings, semantic chunking, and intent validation.
 
-### Strategy
+### Architecture
 
-**Three-part search pipeline:**
+**RAG Pipeline with Three-Part Flow:**
 
 1. **Smart Routing**
    - Detect if query needs current/live data (keywords: "latest", "today", "breaking", "stock price")
    - If live data needed → skip internal, go straight to web
    - If historical/knowledge question → try internal first
 
-2. **Internal Search (Knowledge Base)**
-   - Embed query locally using semantic embeddings
-   - Search ChromaDB vector database of newsletter/Twitter summaries
-   - Judge retrieved chunks with LLM to validate semantic match (0-10 score)
-   - Only proceed if confidence ≥5 (high relevance)
+2. **Internal Search (Semantic Retrieval)**
+   - **Chunking:** Newsletter and Twitter digests chunked at bullet-level precision (not topic-level). Each bullet point becomes its own searchable chunk with topic/author context retained.
+   - **Vectorization:** Query and chunks embedded locally using `sentence-transformers` (all-MiniLM-L6-v2 model, ~22 MB). No external embeddings API.
+   - **Storage:** Embeddings persisted in **ChromaDB** vector database for fast semantic similarity search.
+   - **Intent Validation:** Retrieved chunks passed through LLM judge that scores semantic match (0-10). Only chunks with score ≥5 proceed (eliminates low-confidence matches).
+   - **Generation:** Relevant chunks passed to LLM to synthesize cited answer with `[Source N]` references.
 
 3. **Fallback to Web**
    - If internal search fails or judge rejects → query DuckDuckGo for live results
    - Summarize web results and cite sources
-   - Ensures you get current data when knowledge base is incomplete
+   - Ensures current data when knowledge base is incomplete
 
-### Key Insight
+### Key Technical Insights
 
-**Sequential fallback with intent validation.** Try cheap, fast internal search first (local vector DB + judgement gate). If that fails, fallback to web search. But be intelligent about routing — if you ask for "today's stock price", skip internal entirely because you need current data, not archived knowledge.
+**Bullet-Level Chunking:**
+Each bullet under a topic heading becomes its own chunk, not entire topics. This enables granular retrieval — you get exactly the relevant bullet, not a topic block containing 10 tangential bullets.
 
-All decisions logged to SQLite for later analysis: routing choices, judge scores, fallback rates, query durations.
+**Local Embeddings:**
+Vector computations happen locally (no embedding API cost or latency). Query embedding + similarity search are instant. ~22 MB model cached after first run.
+
+**Judge Gate:**
+LLM validates that retrieved content actually matches intent (prevents false positive retrievals). Score threshold (≥5) acts as quality filter. Retries up to 3 times on parse errors to ensure reliability.
+
+**All Decisions Logged:**
+Every search decision (route choice, chunks retrieved, judge score, fallback trigger) logged to SQLite. Enables analysis of system performance and user behavior over time.
 
 ---
 
@@ -172,32 +188,39 @@ Each project creates summaries that feed into the central search index. You can 
 
 ---
 
-## Design Philosophy
+## Technical Architecture
 
-### Principles
+### Core Concepts
 
-**1. Local-First**
-- Embeddings computed locally (sentence-transformers)
-- Inference on local LLM when possible (Ollama)
-- Minimal external API dependencies (only Claude for analysis)
-- Fast, private, cost-effective
+**1. Semantic Chunking & Vectorization**
+- Content chunked at meaningful boundaries (bullet-level precision, not document-level)
+- Chunks embedded using local sentence-transformers (all-MiniLM-L6-v2, ~22 MB)
+- Embeddings stored in ChromaDB for sub-millisecond semantic similarity search
+- No external embedding APIs — all computation local and cached
 
-**2. Stateful Processing**
-- Track what you've seen (newsletters, tweets, posts)
-- Process only new items on subsequent runs
-- Prevents duplicate work and enables incremental updates
-- Scalable without re-processing history
+**2. State-Driven Incremental Processing**
+- Each project tracks processed IDs (newsletters, tweets, Reddit posts)
+- Only new, unprocessed items analyzed on subsequent runs
+- Prevents duplicate LLM calls and scales to months of history
+- State stored in JSON files (`scanned.json`, `indexed.json`) for simplicity
 
-**3. Composable & Independent**
-- Each project works standalone
-- Or combine outputs via Search News & Twitter
-- No hard dependencies between projects
-- Mix and match based on your needs
+**3. RAG (Retrieval-Augmented Generation)**
+- Search News & Twitter uses RAG architecture: retrieve relevant chunks, then generate answers with context
+- Judge gate validates semantic relevance before generation (0-10 score, threshold ≥5)
+- Fallback to web search if internal retrieval fails
+- All decisions logged to SQLite for analysis and debugging
 
 **4. Topic-Based Organization**
-- All content organized by topic (AI/ML, Engineering, Product, Business, etc.)
-- Makes browsing and discovery natural
-- Semantic search works better with topic context
+- All summaries classified by topic (AI/ML, Engineering, Product, Business, Other)
+- Enables natural browsing and better semantic search performance
+- Topic context included in embeddings for improved relevance
+
+**5. Local-First, Privacy-Focused**
+- Gmail, Twitter, Reddit content stays local
+- Embeddings computed locally (no external API)
+- Only Claude API used for content analysis (not data storage)
+- Ollama optional for local LLM inference
+- Cost-efficient: embeddings are cached, reused across queries
 
 ---
 
