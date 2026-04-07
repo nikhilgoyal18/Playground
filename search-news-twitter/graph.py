@@ -233,6 +233,7 @@ def judge_gate(state: SearchState) -> dict:
             {"role": "system", "content": JUDGE_PROMPT},
             {"role": "user", "content": user_msg},
         ],
+        options={"temperature": 0},  # Deterministic for consistent evaluation
     )
     raw = response.message.content.strip()
 
