@@ -8,6 +8,7 @@ Graph flow:
 """
 
 import json
+import re
 from typing import TypedDict, Optional, List, Literal
 from typing_extensions import Annotated
 import operator
@@ -39,11 +40,24 @@ CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown
 Strict template:
 {"intent_score": 8, "intent_understood": "User wants AI features", "retrieval_quality": "good", "reasoning": "Chunks directly answer", "recommendation": "proceed"}
 
+TEMPORAL VALIDATION (CRITICAL):
+If the query asks about a FUTURE EVENT that hasn't occurred in the April 2026 knowledge base:
+- "Who won the 2026 FIFA World Cup?" → Future event (hasn't occurred)
+- "What will happen..." → Future prediction
+- "upcoming..." or "next..." → Not yet occurred
+THEN SCORE = 0 (REJECT - send to web search for current data)
+
 Scoring guide:
-- 8-10: Chunks directly match query intent
-- 5-7: Partial match
-- 3-4: Loosely related
-- 0-2: Off-topic or not in knowledge base"""
+- 8-10: Chunks directly match query intent AND event has occurred or is not time-bound
+- 5-7: Partial match (related concept, slightly different wording, covers 60%+ of query)
+- 3-4: Loosely related (same domain but different subtopic)
+- 0-2: Off-topic, not in knowledge base, OR future event
+
+LENIENT MATCHING:
+- Accept semantic equivalence: "1:1 meeting structure" ≈ "meeting discussion topics"
+- Accept partial coverage: If chunks cover 60%+ of query intent, score ≥5
+- Accept domain matches: If chunks discuss same general area (e.g., Claude features → Auto Mode), score ≥4
+- REJECT only when: Completely off-topic OR future event OR missing from all sources"""
 
 SYSTEM_PROMPT = """You are a search assistant for a personal knowledge base of newsletter and Twitter digests.
 
@@ -144,9 +158,12 @@ def index_sync(state: SearchState) -> dict:
 
 
 def detect_explicit_web(state: SearchState) -> dict:
-    """Detect explicit web keywords and update state."""
+    """Detect explicit web keywords and update state using word-boundary matching."""
     query_lower = state["normalized_query"].lower()
-    explicit_web = any(kw in query_lower for kw in EXPLICIT_WEB_KEYWORDS)
+    # Use word-boundary regex to avoid matching keywords inside words
+    # e.g., "live" should not match "livelihood", "current" should not match in "currently"
+    pattern = r'\b(' + '|'.join(re.escape(kw) for kw in EXPLICIT_WEB_KEYWORDS) + r')\b'
+    explicit_web = bool(re.search(pattern, query_lower))
     return {"explicit_web_detected": explicit_web}
 
 
