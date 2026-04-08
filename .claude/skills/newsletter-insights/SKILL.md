@@ -28,7 +28,7 @@ Scan Gmail for new newsletters and produce a topic-grouped learning digest.
    - `from` — sender name and email
    - `subject` — email subject line
    - `date` — received date (ISO 8601)
-   - `body` — up to 3000 chars of the actual email body text
+   - `body` — up to 6000 chars of the actual email body text
 
 4. If the array is empty, respond:
    > No new newsletters since the last scan. Check back after more emails arrive.
@@ -44,8 +44,13 @@ Scan Gmail for new newsletters and produce a topic-grouped learning digest.
    **Per issue:**
    - Each issue gets a `###` subsection: the subject line followed by a topic tag in backticks
    - Topic tags: `AI/ML`, `Engineering`, `Product`, `Business`, `Other`
-   - Write 4–6 bullet points of **actual learnings extracted from the body** — not descriptions of what the newsletter is about
-   - Include specific details from the body: numbers, percentages, framework names, tool names, step-by-step instructions, quotes, named companies — whatever substantive content is present
+   - Write 6–8 bullet points of **actual learnings extracted from the body** — not descriptions of what the newsletter is about
+   - Extract with maximum specificity:
+     - If the body includes a direct quote, quote it verbatim
+     - If it names a specific tool, company, or framework, include the exact name
+     - If it provides numbers, percentages, dates, or metrics, include the exact figures
+     - Include step-by-step workflows, code snippets, architecture diagrams, or concrete examples
+     - Reference author names, study citations, or external links when mentioned
    - Skip issues where the body has no real content (e.g., "Listen now (33 mins)" podcast announcements with no transcript)
 
 6. Write the digest to `summaries/YYYY-MM-DD.md` using today's date. Format:
