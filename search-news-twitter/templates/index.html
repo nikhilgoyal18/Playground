@@ -290,12 +290,42 @@
         .empty-state p {
             font-size: 13px;
         }
+
+        .btn-clear {
+            background: white;
+            color: #666;
+            border: 1px solid #d0d0d0;
+            font-size: 13px;
+            padding: 6px 12px;
+            white-space: nowrap;
+        }
+
+        .btn-clear:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .conversation-badge {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 8px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-radius: 10px;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Search News & Twitter</h1>
-        <p>Semantic search across your newsletter and Twitter digests</p>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+                <h1>Search News & Twitter <span class="conversation-badge" id="convBadge" style="display:none;">Conversation active</span></h1>
+                <p>Semantic search across your newsletter and Twitter digests</p>
+            </div>
+            <button class="btn-clear" id="clearBtn">Clear chat</button>
+        </div>
     </div>
 
     <div class="chat-container" id="chatContainer">
@@ -329,6 +359,77 @@
         const sourceFilter = document.getElementById("sourceFilter");
 
         let isLoading = false;
+
+        // --- Conversation state (sessionStorage-backed) ---
+        const HISTORY_KEY = "snt_conv_history";
+        const CONV_ID_KEY = "snt_conv_id";
+        const MESSAGES_KEY = "snt_conv_messages";
+
+        function getHistory() {
+            try { return JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "[]"); }
+            catch { return []; }
+        }
+
+        function saveHistory(history) {
+            sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+
+        function appendToHistory(userMsg, assistantMsg) {
+            const history = getHistory();
+            history.push({ role: "user", content: userMsg });
+            history.push({ role: "assistant", content: assistantMsg });
+            saveHistory(history);
+        }
+
+        function getMessages() {
+            try { return JSON.parse(sessionStorage.getItem(MESSAGES_KEY) || "[]"); }
+            catch { return []; }
+        }
+
+        function appendToMessages(userContent, assistantContent, metadata) {
+            const messages = getMessages();
+            messages.push({ role: "user", content: userContent });
+            messages.push({ role: "assistant", content: assistantContent, metadata });
+            sessionStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+        }
+
+        function getConvId() {
+            let id = sessionStorage.getItem(CONV_ID_KEY);
+            if (!id) {
+                id = crypto.randomUUID();
+                sessionStorage.setItem(CONV_ID_KEY, id);
+            }
+            return id;
+        }
+
+        function updateIndicator() {
+            const badge = document.getElementById("convBadge");
+            if (!badge) return;
+            badge.style.display = getHistory().length > 0 ? "inline-block" : "none";
+        }
+
+        function clearChat() {
+            sessionStorage.removeItem(HISTORY_KEY);
+            sessionStorage.removeItem(CONV_ID_KEY);
+            sessionStorage.removeItem(MESSAGES_KEY);
+            chatContainer.innerHTML = `<div class="empty-state"><h2>Start Searching</h2><p>Ask me anything about your newsletters and Twitter feed</p></div>`;
+            updateIndicator();
+        }
+
+        // Restore chat messages from sessionStorage on page load
+        function restoreChat() {
+            const messages = getMessages();
+            if (messages.length === 0) return;
+            chatContainer.innerHTML = "";
+            for (const msg of messages) {
+                const isUser = msg.role === "user";
+                addMessage(msg.content, isUser, isUser ? null : (msg.metadata || null));
+            }
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        restoreChat();
+        updateIndicator();
 
         // Clear empty state on first message
         function clearEmptyState() {
@@ -486,7 +587,9 @@
                     body: JSON.stringify({
                         query: query,
                         source: sourceFilter.value || null,
-                        top_k: 5
+                        top_k: 5,
+                        conversation_history: getHistory().slice(-6),
+                        conversation_id: getConvId()
                     })
                 });
 
@@ -509,6 +612,18 @@
                         judge_score: data.judge_score,
                         web_result_count: data.web_result_count
                     });
+                    appendToHistory(query, data.answer || "");
+                    appendToMessages(query, data.answer || "", {
+                        id: data.id,
+                        sources: data.sources || [],
+                        path: data.path,
+                        tokens_in: data.tokens_in,
+                        tokens_out: data.tokens_out,
+                        duration_ms: data.duration_ms,
+                        judge_score: data.judge_score,
+                        web_result_count: data.web_result_count
+                    });
+                    updateIndicator();
                 }
             } catch (err) {
                 const thinking = document.getElementById("thinkingMessage");
@@ -524,6 +639,7 @@
 
         // Event listeners
         sendBtn.addEventListener("click", sendQuery);
+        document.getElementById("clearBtn").addEventListener("click", clearChat);
         queryInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

@@ -1,6 +1,6 @@
 # Search-News-Twitter: Bugs & Fixes
 
-**Last Updated:** 2026-04-07  
+**Last Updated:** 2026-04-08  
 **Tests Analyzed:** 71 (11 legacy + 50 original + 10 additional)  
 **Pass Rate:** 70.5% → ~76-80% after fixes
 
@@ -13,6 +13,7 @@
 | 1 | Substring keyword matching | `graph.py` | ⚠️ Partial | 1 confirmed, 2 ambiguous |
 | 2 | Low judge semantic scores | `graph.py` | ✅ Confirmed | 5 tests now pass |
 | 3 | False positive future events | `graph.py` | ⚠️ Partial | 1 identified |
+| 4 | Judge score string/int TypeError | `graph.py` | ✅ Fixed | Prevented 500 crashes |
 
 **Failure categories (before fixes):**
 
@@ -149,6 +150,44 @@ THEN SCORE = 0 (REJECT - send to web search for current data)
 | Pass Rate | 70.5% | ~76-80% |
 | Tests Passing | 43/61 | ~48-50 |
 | Confirmed Fixes | — | 5 |
+
+---
+
+---
+
+## Bug #4: Judge Score String/Int TypeError ✅ Fixed
+
+### Problem
+The graph crashed with `TypeError: '<' not supported between instances of 'str' and 'int'` on certain queries, returning a 500 error to the user and leaving no DB log row.
+
+### Root Cause
+The judge LLM occasionally returns `intent_score` as a JSON string (`"8"`) instead of an integer (`8`). The routing function then did `score < 5` — comparing `str` to `int` — which Python 3 disallows.
+
+```python
+# judge_gate returned:
+{"judge_score": "8", ...}  # string, not int
+
+# route_after_judge did:
+score = state.get("judge_score") or 0
+if score < JUDGE_SCORE_THRESHOLD:  # "8" < 5 → TypeError
+```
+
+### Fix Applied
+Cast to `int` at both the storage point and the comparison point:
+
+```python
+# judge_gate (graph.py)
+"judge_score": int(verdict["intent_score"]),
+
+# route_after_judge (graph.py)
+score = int(state.get("judge_score") or 0)
+```
+
+### Why Two Places
+Defense in depth. If the judge returns a string and we only cast at comparison time, the DB stores a string. If we only cast at storage time, existing rows with strings would still break future reads. Both sites are fixed.
+
+### Key Learning
+Never trust LLM JSON field types. Always cast numeric fields to the expected type immediately upon extraction from LLM output, regardless of what the prompt instructs.
 
 ---
 

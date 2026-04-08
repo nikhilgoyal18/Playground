@@ -15,7 +15,7 @@ WEB_SYSTEM_PROMPT = """You are a web search assistant. Answer the user's questio
 - Do not fabricate information not present in the results."""
 
 
-def web_search(query, max_results=5):
+def web_search(query, max_results=5, conversation_history=None):
     """
     Search the web using DuckDuckGo and summarize results with Ollama.
 
@@ -50,12 +50,21 @@ def web_search(query, max_results=5):
 
     context_text = "\n\n---\n\n".join(context_blocks)
 
+    user_content = f"Web search results:\n\n{context_text}\n\n---\n\nQuestion: {query}"
+    if conversation_history:
+        history_lines = []
+        for turn in conversation_history:
+            role = "User" if turn.get("role") == "user" else "Assistant"
+            history_lines.append(f"{role}: {turn.get('content', '')}")
+        history_text = "\n".join(history_lines)
+        user_content = f"Prior conversation:\n{history_text}\n\n---\n\n{user_content}"
+
     try:
         response = ollama.chat(
             model=OLLAMA_MODEL,
             messages=[
                 {"role": "system", "content": WEB_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Web search results:\n\n{context_text}\n\n---\n\nQuestion: {query}"},
+                {"role": "user", "content": user_content},
             ],
         )
     except Exception as e:

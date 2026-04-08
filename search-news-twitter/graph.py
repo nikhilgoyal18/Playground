@@ -130,6 +130,10 @@ class SearchState(TypedDict):
     total_llm_tokens_in: Annotated[int, operator.add]
     total_llm_tokens_out: Annotated[int, operator.add]
 
+    # Conversation
+    conversation_history: List[dict]
+    conversation_id: Optional[str]
+
 
 # ============================================================================
 # Node functions
@@ -286,7 +290,7 @@ def judge_gate(state: SearchState) -> dict:
     tokens_out = getattr(response, 'eval_count', 0) or 0
 
     return {
-        "judge_score": verdict["intent_score"],
+        "judge_score": int(verdict["intent_score"]),
         "judge_quality": verdict["retrieval_quality"],
         "judge_intent_understood": verdict["intent_understood"],
         "judge_reasoning": verdict["reasoning"],
@@ -310,11 +314,21 @@ def generate_answer(state: SearchState) -> dict:
 
     context_text = "\n\n---\n\n".join(context_blocks)
 
+    conv_history = state.get("conversation_history") or []
+    user_content = f"Context:\n\n{context_text}\n\n---\n\nQuestion: {state['normalized_query']}"
+    if conv_history:
+        history_lines = []
+        for turn in conv_history:
+            role = "User" if turn.get("role") == "user" else "Assistant"
+            history_lines.append(f"{role}: {turn.get('content', '')}")
+        history_text = "\n".join(history_lines)
+        user_content = f"Prior conversation:\n{history_text}\n\n---\n\n{user_content}"
+
     response = ollama.chat(
         model=OLLAMA_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Context:\n\n{context_text}\n\n---\n\nQuestion: {state['normalized_query']}"},
+            {"role": "user", "content": user_content},
         ],
     )
 
@@ -344,9 +358,50 @@ def generate_answer(state: SearchState) -> dict:
     }
 
 
+def _enrich_web_query(query: str, conversation_history: list) -> str:
+    """Rewrite the web search query to be self-contained using conversation context."""
+    if not conversation_history:
+        return query
+    history_lines = []
+    for turn in conversation_history:
+        role = "User" if turn.get("role") == "user" else "Assistant"
+        history_lines.append(f"{role}: {turn.get('content', '')[:400]}")
+    history_text = "\n".join(history_lines)
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Given a conversation and a follow-up query, rewrite the query to be "
+                        "self-contained and specific for a web search. Keep it under 10 words. "
+                        "Preserve specific terms, acronyms, and named entities from prior context exactly as used. "
+                        "Return ONLY the rewritten query, no explanation."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Conversation:\n{history_text}\n\nFollow-up query: {query}\n\nRewritten query:",
+                },
+            ],
+            options={"temperature": 0},
+        )
+        rewritten = response.message.content.strip()
+        return rewritten if rewritten else query
+    except Exception:
+        return query
+
+
 def generate_web_answer(state: SearchState) -> dict:
     """Generate answer from web search."""
-    result = web_search(state["normalized_query"], max_results=5)
+    conv_history = state.get("conversation_history") or []
+    search_query = _enrich_web_query(state["normalized_query"], conv_history) if conv_history else state["normalized_query"]
+    result = web_search(
+        search_query,
+        max_results=5,
+        conversation_history=conv_history,
+    )
 
     # web_search returns (answer, result_count, tokens_in, tokens_out)
     if isinstance(result, tuple) and len(result) == 4:
@@ -387,7 +442,7 @@ def route_after_retrieval(state: SearchState) -> Literal["web_search", "judge_ga
 
 def route_after_judge(state: SearchState) -> Literal["web_search", "generate_answer"]:
     """Route based on judge score."""
-    score = state.get("judge_score") or 0
+    score = int(state.get("judge_score") or 0)
     if score < JUDGE_SCORE_THRESHOLD:
         return "web_search"
     return "generate_answer"

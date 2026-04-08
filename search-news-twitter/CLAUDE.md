@@ -4,28 +4,34 @@ Semantic search across indexed newsletter and Twitter digests with intelligent f
 
 ## How It Works
 
-Run `python3 search.py --query "your question"` from this directory. The system:
+**Web UI (recommended):** Run `python3 app.py` and open `http://localhost:5001`. Supports multi-turn conversation with context memory, clear chat, and full log UI.
+
+**CLI:** Run `python3 search.py --query "your question"` for single-shot queries.
+
+Both invoke the same LangGraph pipeline:
 
 1. **Auto-indexes** any new summary files from `newsletter-insights/summaries/` and `twitter-insights/summaries/`
 2. **Checks for explicit web signals** — queries with real-time keywords (see `EXPLICIT_WEB_KEYWORDS` in `graph.py`) skip straight to web search
 3. **Tries internal search first** — embeds your query with `all-MiniLM-L6-v2`, retrieves semantically similar chunks from ChromaDB
 4. **Intent judge gates output** — LLM validates retrieved chunks match your intent (score 0-10; must be ≥5 to proceed)
-5. **Falls back to web if needed** — queries DuckDuckGo if internal search finds nothing relevant
-6. **Generates cited answers** — both paths produce answers with `[Source N]` citations
-7. **Logs everything** — every session persisted to SQLite for analysis
+5. **Falls back to web if needed** — queries DuckDuckGo if internal search finds nothing relevant; web query is enriched with conversation context before searching
+6. **Generates cited answers** — both paths produce answers with `[Source N]` citations; conversation history is injected at answer generation for coherent follow-ups
+7. **Logs everything** — every turn persisted to SQLite with `conversation_id` for multi-turn tracing
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `search.py` | CLI entry point — orchestrates the full search flow |
+| `search.py` | CLI entry point — single-shot query mode |
+| `app.py` | Flask web server — serves the chatbot UI at `http://localhost:5001` |
+| `templates/index.html` | Chat UI — conversation history, clear chat, source citations, log details |
 | `graph.py` | LangGraph pipeline: 8 nodes, typed state, per-node retry logic |
 | `index.py` | Parses summaries into bullet-level chunks, embeds, upserts to ChromaDB |
-| `web_search.py` | DuckDuckGo integration + Ollama-based summarization |
-| `logger.py` | SQLite persistence layer for search audit trail |
+| `web_search.py` | DuckDuckGo integration + Ollama-based summarization (conversation-aware) |
+| `logger.py` | SQLite persistence layer — includes `conversation_id` for multi-turn tracing |
 | `data/indexed.json` | Tracks indexed summary files (prevents re-processing) |
 | `data/query_cache.json` | Query normalization cache (auto-managed) |
-| `data/search_logs.db` | SQLite audit trail: routing decisions, judge scores, durations |
+| `data/search_logs.db` | SQLite audit trail: routing decisions, judge scores, durations, conversation IDs |
 | `db/chroma/` | ChromaDB persistent vector store (auto-created, do not commit) |
 | `eval/` | Evaluation harness — run `python3 eval/run_eval.py` to check pass rates |
 | `bugs-and-fixes/BUGS.md` | Bug tracking and fix history |

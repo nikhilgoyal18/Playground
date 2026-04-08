@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS searches (
     error                       TEXT,
 
     total_llm_tokens_in         INTEGER,
-    total_llm_tokens_out        INTEGER
+    total_llm_tokens_out        INTEGER,
+    conversation_id             TEXT
 )
 """
 
@@ -55,7 +56,8 @@ INSERT INTO searches (
     judge_reasoning, judge_parse_error,
     internal_answer_generated, internal_no_content_response, internal_succeeded,
     web_attempted, web_was_fallback, web_result_count, web_succeeded,
-    final_output, error, total_llm_tokens_in, total_llm_tokens_out
+    final_output, error, total_llm_tokens_in, total_llm_tokens_out,
+    conversation_id
 ) VALUES (
     :timestamp, :query, :normalized_query, :duration_ms,
     :explicit_web_detected,
@@ -64,7 +66,8 @@ INSERT INTO searches (
     :judge_reasoning, :judge_parse_error,
     :internal_answer_generated, :internal_no_content_response, :internal_succeeded,
     :web_attempted, :web_was_fallback, :web_result_count, :web_succeeded,
-    :final_output, :error, :total_llm_tokens_in, :total_llm_tokens_out
+    :final_output, :error, :total_llm_tokens_in, :total_llm_tokens_out,
+    :conversation_id
 )
 """
 
@@ -76,6 +79,11 @@ def init_db():
         # Enable WAL mode to prevent locking issues with concurrent access
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(CREATE_TABLE_SQL)
+        # Migrate existing DBs: add conversation_id column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN conversation_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         conn.commit()
 
 
@@ -114,6 +122,7 @@ def save_log(log: dict):
         "error": log.get("error"),
         "total_llm_tokens_in": log.get("total_llm_tokens_in"),
         "total_llm_tokens_out": log.get("total_llm_tokens_out"),
+        "conversation_id": log.get("conversation_id"),
     }
     with sqlite3.connect(DB_PATH, timeout=10) as conn:
         cursor = conn.execute(INSERT_SQL, row)

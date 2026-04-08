@@ -73,6 +73,32 @@ GROUP BY path
 
 ---
 
+## Analyze Conversations
+
+To trace a full conversation in the DB:
+```bash
+sqlite3 data/search_logs.db "
+SELECT id, timestamp, query, conversation_id
+FROM searches
+WHERE conversation_id = 'your-uuid-here'
+ORDER BY id
+"
+```
+
+To see all multi-turn conversations:
+```bash
+sqlite3 data/search_logs.db "
+SELECT conversation_id, COUNT(*) as turns, MIN(timestamp) as started
+FROM searches
+WHERE conversation_id IS NOT NULL
+GROUP BY conversation_id
+ORDER BY started DESC
+LIMIT 10
+"
+```
+
+---
+
 ## Troubleshooting
 
 ### "Ollama is not running"
@@ -95,3 +121,18 @@ Created on first search. If empty after searches, check for errors:
 ```bash
 sqlite3 data/search_logs.db "SELECT * FROM searches LIMIT 1"
 ```
+
+### 500 error on web UI (search failed)
+Check the server log:
+```bash
+tail -50 /tmp/snt_server.log
+```
+Common causes:
+- **`'<' not supported between instances of 'str' and 'int'`** — judge LLM returned score as string. Fixed in graph.py (cast to `int`). If it recurs, check Ollama output.
+- Ollama timeout during `_enrich_web_query` — transient; retrying the query usually works.
+- Graph state error — restart the server: `lsof -ti :5001 | xargs kill -9; python3 app.py > /tmp/snt_server.log 2>&1 &`
+
+### Conversation context not carrying over
+- Check browser sessionStorage: open DevTools → Application → Session Storage → `snt_conv_history`
+- If empty, the history was cleared (tab closed, or "Clear chat" was clicked)
+- Conversation history is capped at 6 entries (3 exchanges) before sending to backend — older context is not included

@@ -68,6 +68,25 @@ def search():
     if not query:
         return jsonify({"error": "Query cannot be empty"}), 400
 
+    # Extract and validate conversation_history
+    raw_history = data.get("conversation_history", [])
+    conversation_id = data.get("conversation_id", None)
+    if not isinstance(conversation_id, str):
+        conversation_id = None
+
+    conversation_history = []
+    if isinstance(raw_history, list):
+        for entry in raw_history:
+            if (isinstance(entry, dict) and
+                    isinstance(entry.get("role"), str) and
+                    entry.get("role") in ("user", "assistant") and
+                    isinstance(entry.get("content"), str)):
+                conversation_history.append({"role": entry["role"], "content": entry["content"]})
+            else:
+                print(f"Warning: Dropped malformed conversation_history entry: {entry}")
+    # Cap to last 6 entries (3 exchanges) — server-side safety backstop
+    conversation_history = conversation_history[-6:]
+
     # Build initial state (mirrors search.py main())
     timestamp = datetime.now(timezone.utc).isoformat()
     search_id = None  # Will be assigned after logging to DB
@@ -101,6 +120,8 @@ def search():
         "duration_ms": None,
         "total_llm_tokens_in": 0,
         "total_llm_tokens_out": 0,
+        "conversation_history": conversation_history,
+        "conversation_id": conversation_id,
     }
 
     start_ms = time.monotonic()
@@ -112,7 +133,9 @@ def search():
         final_state = graph.invoke(initial_state)
     except Exception as e:
         error_msg = str(e)
+        import traceback
         print(f"Error during graph invocation: {error_msg}")
+        traceback.print_exc()
 
     duration_ms = int((time.monotonic() - start_ms) * 1000)
 
@@ -161,6 +184,7 @@ def search():
         }
         if final_state.get("errors"):
             log["error"] = "; ".join(final_state["errors"])
+        log["conversation_id"] = conversation_id
         search_id = save_log(log)  # Get the database ID
         print(f"DEBUG: Logged search with ID: {search_id}")
     except Exception as e:
