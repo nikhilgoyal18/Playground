@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Evaluation harness for search-news-twitter RAG system.
+Evaluation harness for AI Chatbot RAG system.
 
 Runs test queries and measures:
 - Routing correctness (internal vs. web fallback vs. explicit web)
@@ -213,7 +213,7 @@ def print_table(results: list):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run evaluation harness for search-news-twitter")
+    parser = argparse.ArgumentParser(description="Run evaluation harness for AI Chatbot")
     parser.add_argument("--id", help="Run only this test ID")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of table")
     args = parser.parse_args()

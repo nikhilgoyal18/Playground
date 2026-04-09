@@ -1,0 +1,72 @@
+{
+  "0ee623bd6c42cb9d6cd73bee0a762853": {
+    "final_output": "According to ByteByteGo, Spotify ships to over 675 million users every week using a trunk-based development approach with no long-lived feature branches. This method keeps integration problems small but requires discipline (Source 4). The architecture also relies on architectural design choices rather than testing hardness for achieving high release reliability (Source 5).\n\nAdditionally, the platform distribution of 95%+ releases shipping to every user without breaking is achieved through this approach. The severity thresholds and escalation processes are in place to handle issues that cross predefined thresholds, ensuring a safe and reliable experience for users.\n\nThe speed at which these updates are deployed also reinforces safety, as the design prioritizes release reliability over complexity (Source 7). This results in the ability of Spotify to ship to over 675 million users every week without breaking things.",
+    "metas": [
+      {
+        "author": "ByteByteGo",
+        "date": "2026-04-08",
+        "tag": "Engineering",
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "source_type": "newsletter",
+        "file": "newsletter-insights/summaries/2026-04-08.md"
+      },
+      {
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "source_type": "newsletter",
+        "author": "ByteByteGo",
+        "file": "newsletter-insights/summaries/2026-04-08.md",
+        "tag": "Engineering",
+        "date": "2026-04-08"
+      },
+      {
+        "file": "newsletter-insights/summaries/2026-04-08.md",
+        "author": "ByteByteGo",
+        "source_type": "newsletter",
+        "tag": "Engineering",
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "date": "2026-04-08"
+      },
+      {
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "source_type": "newsletter",
+        "author": "ByteByteGo",
+        "tag": "Engineering",
+        "date": "2026-04-08",
+        "file": "newsletter-insights/summaries/2026-04-08.md"
+      },
+      {
+        "source_type": "newsletter",
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "date": "2026-04-08",
+        "file": "newsletter-insights/summaries/2026-04-08.md",
+        "tag": "Engineering",
+        "author": "ByteByteGo"
+      },
+      {
+        "date": "2026-04-08",
+        "file": "newsletter-insights/summaries/2026-04-08.md",
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "author": "ByteByteGo",
+        "tag": "Engineering",
+        "source_type": "newsletter"
+      },
+      {
+        "author": "ByteByteGo",
+        "source_type": "newsletter",
+        "tag": "Engineering",
+        "file": "newsletter-insights/summaries/2026-04-08.md",
+        "title": "How Spotify Ships to 675 Million Users Every Week Without Breaking Things",
+        "date": "2026-04-08"
+      },
+      {
+        "tag": "Engineering",
+        "source_type": "newsletter",
+        "author": "ByteByteGo",
+        "date": "2026-04-02",
+        "file": "newsletter-insights/summaries/2026-04-02.md",
+        "title": "How Netflix Live Streams to 100 Million Devices in 60 Seconds"
+      }
+    ],
+    "timestamp": "2026-04-08T23:37:16.093068+00:00"
+  }
+}

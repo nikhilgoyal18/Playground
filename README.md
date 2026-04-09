@@ -23,7 +23,7 @@ You're exposed to newsletters, Twitter, Reddit, and other information channels d
 1. **Newsletter Insights** — Turn inbox chaos into organized summaries
 2. **Twitter Insights** — Capture timeline insights before they disappear
 3. **Reddit Insights** — Mine community feedback for problems and opportunities
-4. **Search News & Twitter** — Unified semantic search across all sources
+4. **AI Chatbot** — Unified semantic search and Q&A across all sources
 
 Each project is independent but composable. You can run one or all four. Their outputs feed into each other.
 
@@ -36,7 +36,7 @@ Each project is independent but composable. You can run one or all four. Their o
 | **Newsletter Insights** | Auto-digest newsletters from Gmail | Classify by topic, track state, organize for later recall |
 | **Twitter Insights** | Capture your Twitter home timeline | Filter signal, organize by topic, preserve before posts disappear |
 | **Reddit Insights** | Extract tech problems from communities | Rank by engagement, research solutions, score market opportunities |
-| **Search News & Twitter** | Unified search across digests | RAG-powered semantic search with intelligent fallback to live web |
+| **AI Chatbot** | Semantic search and Q&A | RAG-powered search with intelligent fallback to live web |
 
 ---
 
@@ -115,11 +115,11 @@ Problems scored on two axes: (1) community demand (engagement), (2) solution ava
 
 ---
 
-## Search News & Twitter
+## AI Chatbot
 
 **Status:** ✅ Fully operational
 
-Unified semantic search across all your newsletter and Twitter digests with intelligent fallback to live web search. Built on **RAG (Retrieval-Augmented Generation)** architecture with local embeddings, semantic chunking, and intent validation.
+Semantic search and intelligent Q&A across all your digests with fallback to live web search. Built on **RAG (Retrieval-Augmented Generation)** architecture with local embeddings, semantic chunking, and intent validation.
 
 ### Architecture
 
@@ -169,7 +169,7 @@ Twitter (timeline) ───┼──> Twitter Insights ────────
                       │    (capture & organize)      │
                       │                               │
                       ├──────────────────────────────┤
-                                                     └──> Search News & Twitter
+                                                     └──> AI Chatbot
 Reddit (communities) ─┴──> Reddit Insights              (semantic search + web fallback)
                            (rank problems, research)
 ```
@@ -205,7 +205,7 @@ Each project creates summaries that feed into the central search index. You can 
 - State stored in JSON files (`scanned.json`, `indexed.json`) for simplicity
 
 **3. RAG (Retrieval-Augmented Generation)**
-- Search News & Twitter uses RAG architecture: retrieve relevant chunks, then generate answers with context
+- AI Chatbot uses RAG architecture: retrieve relevant chunks, then generate answers with context
 - Judge gate validates semantic relevance before generation (0-10 score, threshold ≥5)
 - Fallback to web search if internal retrieval fails
 - All decisions logged to SQLite for analysis and debugging

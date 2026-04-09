@@ -1,16 +1,16 @@
 ---
 name: news-twitter-search-eval
-description: Run evaluation harness for search-news-twitter to measure model quality
+description: Run evaluation harness for ai-chatbot to measure model quality
 ---
 
-# Evaluate Search-News-Twitter Model
+# Evaluate AI Chatbot Model
 
 Run the automated evaluation harness to measure RAG answer quality, routing correctness, and retrieval precision.
 
 ## Quick Start
 
 ```bash
-cd /Users/nikhil/Documents/AI/Playground/search-news-twitter
+cd /Users/nikhil/Documents/AI/Playground/ai-chatbot
 python3 eval/run_eval.py
 ```
 

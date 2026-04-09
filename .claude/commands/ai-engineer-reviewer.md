@@ -35,6 +35,8 @@ Before giving any feedback, orient yourself:
 
 Evaluate the codebase across these areas. Adapt depth based on what is present.
 
+For each dimension, assign a score from 1–10 based on how well the system performs in that area. Format: **Score: X/10**
+
 ### 1. Architecture & Design
 
 - Does the overall design make sense for the use case? Is it over-engineered or under-engineered?
@@ -145,6 +147,12 @@ Call out specific decisions that are well-made. Good engineering deserves acknow
 ### Next Steps
 
 A short, ordered list of the 3–5 highest-leverage actions to take next.
+
+### Overall Score
+
+Provide a single overall score out of 10 that reflects the weighted quality of the work across all dimensions reviewed. Briefly justify the score in 1–2 sentences.
+
+**Overall: X/10**
 
 ---
 

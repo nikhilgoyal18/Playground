@@ -4,7 +4,7 @@
 
 ## Overview
 
-The search-news-twitter system chunks summary files at the **bullet-level** — each bullet point under a topic heading becomes its own searchable chunk. This document explains why, the tradeoffs, and how to modify the strategy if needed.
+The AI Chatbot system chunks summary files at the **bullet-level** — each bullet point under a topic heading becomes its own searchable chunk. This document explains why, the tradeoffs, and how to modify the strategy if needed.
 
 ---
 

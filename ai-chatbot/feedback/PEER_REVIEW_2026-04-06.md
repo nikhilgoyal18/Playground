@@ -1,4 +1,4 @@
-# Peer Review: Search News & Twitter RAG System
+# Peer Review: AI Chatbot RAG System
 **Reviewer:** Claude (Senior AI Engineer)  
 **Date:** 2026-04-06  
 **Scope:** LangGraph migration, orchestration, RAG pipeline, observability

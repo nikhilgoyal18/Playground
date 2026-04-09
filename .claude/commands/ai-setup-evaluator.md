@@ -34,6 +34,8 @@ Before giving feedback, orient yourself:
 
 Evaluate the project across these areas.
 
+For each dimension, assign a score from 1–10 based on how well the project performs in that area. Format: **Score: X/10**
+
 ### 1. Instruction Hierarchy
 
 - Is there a clear source of truth?
@@ -139,6 +141,12 @@ Call out good routing, naming, modularity, or token-efficient choices.
 ### Next Steps
 
 List the 3–5 highest-leverage changes in priority order.
+
+### Overall Score
+
+Provide a single overall score out of 10 that reflects the weighted quality of the AI setup across all dimensions reviewed. Briefly justify the score in 1–2 sentences.
+
+**Overall: X/10**
 
 ---
 

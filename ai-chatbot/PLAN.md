@@ -1,11 +1,11 @@
-# Search News & Twitter — Plan
+# AI Chatbot — Plan
 
 ## Shipped
 
 - Initial RAG project: ChromaDB + sentence-transformers + Ollama LLM
 - Auto-indexing: new summary files picked up on every search
 - CLI: `--query`, `--source`, `--top-k`, `--date-from` flags
-- Skill: `/search-news-twitter`
+- Skill: `/ai-chatbot`
 - **Sequential fallback strategy**: internal search first, web on miss (not LLM router)
 - **LLM-as-Judge**: intent validation before answer generation (score 0-10)
 - **SQLite logging**: full audit trail with routing decisions, judge scores, judge reasoning

@@ -1,5 +1,5 @@
 """
-Test cases for search-news-twitter evaluation harness.
+Test cases for AI Chatbot evaluation harness.
 
 Each test case defines:
 - id: unique test identifier

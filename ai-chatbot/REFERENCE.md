@@ -1,4 +1,4 @@
-# Search News & Twitter — Reference
+# AI Chatbot — Reference
 
 Read this file for: **setup, troubleshooting, or analyzing search logs**.  
 For normal usage and project overview, see `CLAUDE.md`.
@@ -16,7 +16,7 @@ Model size: ~2 GB. Runs as a local server — no API key needed after this step.
 
 ### 2. Install Python dependencies
 ```bash
-cd search-news-twitter
+cd ai-chatbot
 pip install -r requirements.txt
 ```
 

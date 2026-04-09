@@ -1,8 +1,8 @@
 ---
 description: >
-  Semantic search across indexed newsletter and Twitter summaries using RAG (ChromaDB + Claude).
-  Use when the user wants to search their digests, find topics in newsletters or tweets,
-  ask questions about past content, or look up what they've read about a specific subject.
+  Semantic search and Q&A across all indexed digests using RAG (ChromaDB + Claude).
+  Use when the user wants to search their digests, ask questions about past content,
+  or look up what they've read about a specific subject.
   Trigger phrases: "search my digests", "search newsletters and twitter", "find articles about",
   "what have I read about", "search news twitter", "look up in my summaries",
   "what did newsletters say about", "what did twitter say about", "search my knowledge base",
@@ -10,15 +10,15 @@ description: >
 allowed-tools: Bash(python3 index.py*), Bash(python3 search.py*), Read
 ---
 
-# Search News & Twitter
+# AI Chatbot
 
-Semantic search across indexed newsletter and Twitter digests using RAG.
+Semantic search and Q&A across all indexed digests using RAG.
 
 ## Steps
 
-1. Change into the `search-news-twitter/` directory:
+1. Change into the `ai-chatbot/` directory:
    ```bash
-   cd /Users/nikhil/Documents/AI/Playground/search-news-twitter
+   cd /Users/nikhil/Documents/AI/Playground/ai-chatbot
    ```
 
 2. Extract a clean, focused search query from the user's message. If their question is

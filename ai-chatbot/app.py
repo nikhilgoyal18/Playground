@@ -1,6 +1,6 @@
 """
-Chatbot UI server for search-news-twitter.
-Serves a web interface at http://localhost:5000 for semantic search across digests.
+Chatbot UI server for AI Chatbot.
+Serves a web interface at http://localhost:5001 for semantic search and Q&A across digests.
 """
 
 import time
@@ -223,6 +223,6 @@ def _classify_path(state):
 
 
 if __name__ == "__main__":
-    print("Starting search-news-twitter chatbot UI...")
+    print("Starting AI Chatbot UI...")
     print("Open http://localhost:5001 in your browser")
     app.run(debug=False, port=5001)

@@ -1,6 +1,6 @@
-# Search News & Twitter
+# AI Chatbot
 
-Semantic search across indexed newsletter and Twitter digests with intelligent fallback to live web search. Uses local embeddings (sentence-transformers), ChromaDB vector storage, Ollama LLM, and DuckDuckGo.
+Semantic search and intelligent Q&A across all your digests with fallback to live web search. Powered by local embeddings, ChromaDB vector storage, Claude, and DuckDuckGo.
 
 ## How It Works
 

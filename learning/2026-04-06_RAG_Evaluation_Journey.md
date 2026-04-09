@@ -1,7 +1,7 @@
 # Learning Document: Building an Evaluation Harness for RAG System Quality
 
 **Date:** 2026-04-06  
-**Project:** search-news-twitter  
+**Project:** AI Chatbot  
 **Topic:** Quality measurement, debugging LLM behavior, test-driven development
 
 ---
@@ -9,7 +9,7 @@
 ## Problem Statement
 
 **The Core Issue:**
-After months of development on the search-news-twitter RAG system, we had 18+ search logs but **no way to measure if the system was actually getting better or worse**. Changes to the judge prompt, embedding model, or chunking strategy could silently degrade answer quality without anyone noticing.
+After months of development on the AI Chatbot RAG system, we had 18+ search logs but **no way to measure if the system was actually getting better or worse**. Changes to the judge prompt, embedding model, or chunking strategy could silently degrade answer quality without anyone noticing.
 
 **Why This Mattered:**
 - The peer review identified this as the **highest-leverage gap** in the entire system
@@ -205,7 +205,7 @@ The peer review identified this gap, but it should have been built during initia
 
 **To run the harness today:**
 ```bash
-cd search-news-twitter
+cd AI Chatbot
 python3 eval/run_eval.py
 # Results: 11/11 passed (100.0%)
 ```
