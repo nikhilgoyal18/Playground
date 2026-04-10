@@ -27,6 +27,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | reddit problems, scan reddit, reddit insights, market research reddit, reddit pain points, what problems on reddit, reddit opportunities | `reddit-problems` |
 | research reddit problems, deep dive reddit, analyze reddit opportunities, find solutions for reddit problems | `reddit-research` |
 | search my digests, ask me about, find articles about, what have I read about, look up in my summaries, have I read anything about, chat with my knowledge base, ask my digests | `ai-chatbot` |
+| questions and answers, let's do Q&A, Q&A session, generate interview questions, add to questions and answers, interview prep from this | `qa-session` |
 
 ## Adding a New Project
 

@@ -47,7 +47,10 @@
       "Read(//tmp/**)",
       "Bash(pkill -9 python3)",
       "Bash(killall -9 python3)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(python3.14 scan_newsletters.py --auth)",
+      "Bash(rm:*)",
+      "Bash(python3.14)"
     ]
   }
 }
