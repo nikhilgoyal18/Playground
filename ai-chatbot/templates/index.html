@@ -315,6 +315,52 @@
             vertical-align: middle;
             margin-left: 6px;
         }
+
+        .feedback-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .feedback-row .fb-label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .btn-feedback {
+            background: none;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 14px;
+            cursor: pointer;
+            line-height: 1.4;
+            transition: background 0.15s, border-color 0.15s;
+            color: #555;
+        }
+
+        .btn-feedback:hover:not(:disabled) {
+            background: #f0f0f0;
+            border-color: #bbb;
+        }
+
+        .btn-feedback.selected-up {
+            background: #d1fae5;
+            border-color: #059669;
+            color: #065f46;
+        }
+
+        .btn-feedback.selected-down {
+            background: #fee2e2;
+            border-color: #dc2626;
+            color: #991b1b;
+        }
+
+        .btn-feedback:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -549,6 +595,79 @@
 
                 logFooter.appendChild(logToggle);
                 logFooter.appendChild(logDetails);
+
+                // Feedback row (thumbs up / down) — append before logFooter for visibility
+                if (metadata.id != null) {
+                    const feedbackRow = document.createElement("div");
+                    feedbackRow.className = "feedback-row";
+
+                    const fbLabel = document.createElement("span");
+                    fbLabel.className = "fb-label";
+                    fbLabel.textContent = "Helpful?";
+
+                    const upBtn = document.createElement("button");
+                    upBtn.className = "btn-feedback";
+                    upBtn.setAttribute("data-search-id", metadata.id);
+                    upBtn.setAttribute("data-feedback", "up");
+                    upBtn.setAttribute("aria-label", "Thumbs up");
+                    upBtn.textContent = "👍";
+                    upBtn.title = "Thumbs up";
+
+                    const downBtn = document.createElement("button");
+                    downBtn.className = "btn-feedback";
+                    downBtn.setAttribute("data-search-id", metadata.id);
+                    downBtn.setAttribute("data-feedback", "down");
+                    downBtn.setAttribute("aria-label", "Thumbs down");
+                    downBtn.textContent = "👎";
+                    downBtn.title = "Thumbs down";
+
+                    // Restore prior feedback on page reload
+                    if (metadata.feedback === "up") {
+                        upBtn.classList.add("selected-up");
+                    } else if (metadata.feedback === "down") {
+                        downBtn.classList.add("selected-down");
+                    }
+
+                    async function submitFeedback(chosenBtn, chosenValue, otherBtn) {
+                        try {
+                            const res = await fetch("/feedback", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: metadata.id, feedback: chosenValue })
+                            });
+                            if (!res.ok) {
+                                console.error("Feedback POST failed:", res.status);
+                                return;
+                            }
+                            // Visual update
+                            chosenBtn.classList.add(chosenValue === "up" ? "selected-up" : "selected-down");
+                            otherBtn.classList.remove("selected-up", "selected-down");
+
+                            // Persist feedback to sessionStorage for page reload restore
+                            const messages = getMessages();
+                            for (const m of messages) {
+                                if (m.role === "assistant" && m.metadata && m.metadata.id === metadata.id) {
+                                    m.metadata.feedback = chosenValue;
+                                    break;
+                                }
+                            }
+                            sessionStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+                            // Keep local metadata in sync so re-clicks within the same session work
+                            metadata.feedback = chosenValue;
+                        } catch (err) {
+                            console.error("Feedback error:", err);
+                        }
+                    }
+
+                    upBtn.addEventListener("click", () => submitFeedback(upBtn, "up", downBtn));
+                    downBtn.addEventListener("click", () => submitFeedback(downBtn, "down", upBtn));
+
+                    feedbackRow.appendChild(fbLabel);
+                    feedbackRow.appendChild(upBtn);
+                    feedbackRow.appendChild(downBtn);
+                    messageDiv.appendChild(feedbackRow);
+                }
+
                 messageDiv.appendChild(logFooter);
             }
 

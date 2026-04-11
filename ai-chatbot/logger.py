@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS searches (
 
     total_llm_tokens_in         INTEGER,
     total_llm_tokens_out        INTEGER,
-    conversation_id             TEXT
+    conversation_id             TEXT,
+    feedback                    TEXT
 )
 """
 
@@ -94,6 +95,11 @@ def init_db():
         # Migrate existing DBs: add llm_only_used column if missing
         try:
             conn.execute("ALTER TABLE searches ADD COLUMN llm_only_used INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        # Migrate existing DBs: add feedback column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN feedback TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
         conn.commit()
@@ -163,3 +169,30 @@ def _truncate(text, max_len):
     if text is None:
         return None
     return text[:max_len] if len(text) > max_len else text
+
+
+def update_feedback(search_id: int, feedback: str) -> bool:
+    """
+    Update the feedback column for an existing search row.
+
+    Args:
+        search_id: The integer primary key of the row to update.
+        feedback:  "up" or "down" — stored as TEXT for SQL readability.
+
+    Returns:
+        True  — row was found and updated.
+        False — no row matched search_id (id not found).
+    """
+    try:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
+            cursor = conn.execute(
+                "UPDATE searches SET feedback = ? WHERE id = ?",
+                (feedback, search_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+    except Exception as e:
+        print(f"ERROR in update_feedback: {e}")
+        import traceback
+        traceback.print_exc()
+        return False

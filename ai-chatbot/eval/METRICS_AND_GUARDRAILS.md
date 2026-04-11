@@ -214,17 +214,37 @@ GROUP BY path;
 
 ---
 
-### 1.9 User Feedback Signal — 🔲 Pending
+### 1.9 User Feedback Signal — ✅ Done
 
 **What it measures:** Did the user find the answer useful? Thumbs up/down per response.
 
 **Why it matters:** Judge validates retrieval quality, but can't tell if the final answer was actually useful. No feedback loop currently exists.
 
-**Implementation plan:**
-- Add thumbs up/down buttons to UI per answer
-- Log `user_feedback` (1/-1/0) to SQLite against the response `id`
-- Track % positive feedback per path over time
-- Use negative feedback to identify systemic failure patterns
+**Implementation:** (2026-04-11)
+- ✅ Thumbs up/down buttons in UI (below each assistant answer)
+- ✅ Feedback logged to SQLite `feedback` column ("up" / "down" / NULL) against `id`
+- ✅ Per-answer persistence: buttons restore state on page reload via sessionStorage
+- ✅ Re-click support: user can change feedback anytime
+- ✅ `/feedback` route: POST endpoint with validation (400/404/200)
+- ✅ Accessibility: `aria-label` attributes on both buttons
+
+**Audit queries:**
+```sql
+-- Feedback distribution
+SELECT feedback, COUNT(*) FROM searches WHERE feedback IS NOT NULL GROUP BY feedback;
+
+-- Recent feedback
+SELECT id, timestamp, query, feedback FROM searches WHERE feedback IS NOT NULL ORDER BY id DESC LIMIT 20;
+
+-- Baseline: target ≥80% positive
+SELECT ROUND(100.0 * SUM(CASE WHEN feedback = 'up' THEN 1 ELSE 0 END) / COUNT(*), 1) as pct_positive
+FROM searches WHERE feedback IS NOT NULL;
+```
+
+**Next steps:**
+- Monitor feedback baseline once sufficient data arrives (50+ samples)
+- Set up alerting if positive % drops below 80%
+- Use negative feedback to identify systemic routing or content gaps
 
 ---
 
@@ -517,7 +537,7 @@ score = int(state.get("judge_score") or 0)
 | 1.6 | Token usage | ✅ Done (logged) | No budget target yet |
 | 1.7 | Eval test suite (71 cases) | ✅ Done | ≥95% pass rate |
 | 1.8 | Path distribution dashboard | 🔲 Pending | — |
-| 1.9 | User feedback signal (thumbs) | 🔲 Pending | ≥80% positive |
+| 1.9 | User feedback signal (thumbs) | ✅ Done | ≥80% positive |
 | 1.10 | llm_only hit rate tracking | 🔲 Pending | 5-15% target range |
 | 1.11 | Conversation coherence tests | 🔲 Pending | — |
 

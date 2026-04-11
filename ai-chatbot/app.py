@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from flask import Flask, request, jsonify, render_template
 
 from graph import build_graph
-from logger import init_db, save_log
+from logger import init_db, save_log, update_feedback
 
 app = Flask(__name__)
 
@@ -212,6 +212,36 @@ def search():
     }
 
     return jsonify(response), 200
+
+
+@app.route("/feedback", methods=["POST"])
+def feedback():
+    """
+    Record a thumbs-up or thumbs-down for a previously logged search.
+
+    Request JSON:
+        { "id": <int>, "feedback": "up" | "down" }
+
+    Responses:
+        200  { "ok": true }
+        400  { "error": "..." }   — bad input
+        404  { "error": "Search ID not found" }
+    """
+    data = request.get_json() or {}
+
+    search_id = data.get("id")
+    fb = data.get("feedback")
+
+    if not isinstance(search_id, int):
+        return jsonify({"error": "id must be an integer"}), 400
+    if fb not in ("up", "down"):
+        return jsonify({"error": "feedback must be 'up' or 'down'"}), 400
+
+    found = update_feedback(search_id, fb)
+    if not found:
+        return jsonify({"error": "Search ID not found"}), 404
+
+    return jsonify({"ok": True}), 200
 
 
 def _classify_path(state):
