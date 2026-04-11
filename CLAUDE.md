@@ -20,6 +20,8 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 
 ## Auto-invoke Skills
 
+Core user-facing skills auto-triggered by natural language intent:
+
 | Natural language intent | Skill to invoke |
 |------------------------|-----------------|
 | newsletters, newsletter digest, newsletter scan, latest newsletters, summarize newsletters, "give me today's newsletters" | `newsletter-insights` |
@@ -29,20 +31,9 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 | search my digests, ask me about, find articles about, what have I read about, look up in my summaries, have I read anything about, chat with my knowledge base, ask my digests | `ai-chatbot` |
 | questions and answers, let's do Q&A, Q&A session, generate interview questions, add to questions and answers, interview prep from this | `qa-session` |
 
-## AI Chatbot Evaluation & Quality
+Additional skills for reviewers, evaluators, and utilities are invoked by explicit command.
 
-See **`ai-chatbot/eval/METRICS_AND_GUARDRAILS.md`** for:
-- **11 evaluation metrics** (routing correctness, source precision, judge score quality, latency, token usage, etc.)
-- **15 guardrails** (distance threshold, judge gate, keyword bypass, intent classifier, conversation cap, input validation, etc.)
-- **Baseline metrics** from 2026-04-06 evaluation (76-80% pass rate, judge scores, path distribution)
-- **4 historical bugs** with root causes and fixes
-- **SQL audit trail queries** for inspecting production data
+## AI Chatbot Quality
 
-Current status: ~76-80% pass rate on 71 test cases. Target: ≥95%.
+See **`ai-chatbot/eval/METRICS_AND_GUARDRAILS.md`** for evaluation metrics, guardrails, baseline results, and historical bugs.
 
-## Adding a New Project
-
-1. Create a new subfolder under `Playground/`
-2. Add a `CLAUDE.md` describing the project's purpose and tools
-3. Add an entry to the Projects table above
-4. Optionally create a skill in `.claude/skills/`
