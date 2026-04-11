@@ -38,6 +38,9 @@ def make_initial_state(query: str) -> dict:
         "top_k": 5,
         "date_from": None,
         "explicit_web_detected": False,
+        "intent_class": None,
+        "intent_classify_skipped": False,
+        "llm_only_answer": None,
         "docs": [],
         "metas": [],
         "distances": [],
@@ -65,7 +68,9 @@ def make_initial_state(query: str) -> dict:
 
 def classify_path(state: dict) -> str:
     """Classify which execution path was taken based on final state."""
-    if state.get("explicit_web_detected"):
+    if state.get("intent_class") == "GENERAL" and state.get("llm_only_answer") is not None:
+        return "llm_only"
+    elif state.get("explicit_web_detected"):
         return "explicit_web"
     elif state.get("internal_succeeded"):
         return "internal"

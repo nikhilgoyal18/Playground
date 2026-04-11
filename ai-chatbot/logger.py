@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS searches (
     duration_ms                 INTEGER,
 
     explicit_web_detected       INTEGER NOT NULL DEFAULT 0,
+    intent_class                TEXT,
+    llm_only_used               INTEGER NOT NULL DEFAULT 0,
 
     internal_attempted          INTEGER NOT NULL DEFAULT 0,
     top_chunk_distance          REAL,
@@ -50,7 +52,7 @@ CREATE TABLE IF NOT EXISTS searches (
 INSERT_SQL = """
 INSERT INTO searches (
     timestamp, query, normalized_query, duration_ms,
-    explicit_web_detected,
+    explicit_web_detected, intent_class, llm_only_used,
     internal_attempted, top_chunk_distance, chunks_passed_threshold,
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
     judge_reasoning, judge_parse_error,
@@ -60,7 +62,7 @@ INSERT INTO searches (
     conversation_id
 ) VALUES (
     :timestamp, :query, :normalized_query, :duration_ms,
-    :explicit_web_detected,
+    :explicit_web_detected, :intent_class, :llm_only_used,
     :internal_attempted, :top_chunk_distance, :chunks_passed_threshold,
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
     :judge_reasoning, :judge_parse_error,
@@ -84,6 +86,16 @@ def init_db():
             conn.execute("ALTER TABLE searches ADD COLUMN conversation_id TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
+        # Migrate existing DBs: add intent_class column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN intent_class TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        # Migrate existing DBs: add llm_only_used column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN llm_only_used INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         conn.commit()
 
 
@@ -102,6 +114,8 @@ def save_log(log: dict):
         "normalized_query": log.get("normalized_query"),
         "duration_ms": log.get("duration_ms"),
         "explicit_web_detected": int(log.get("explicit_web_detected", False)),
+        "intent_class": log.get("intent_class"),
+        "llm_only_used": int(log.get("llm_only_used", False)),
         "internal_attempted": int(log.get("internal_attempted", False)),
         "top_chunk_distance": log.get("top_chunk_distance"),
         "chunks_passed_threshold": _opt_int(log.get("chunks_passed_threshold")),

@@ -84,6 +84,50 @@ Answer the user's question using ONLY the provided context chunks below.
 - Only say "I don't have enough relevant content in the indexed summaries to answer this question."
   if the chunks are genuinely about a completely different topic than the question."""
 
+INTENT_CLASSIFIER_PROMPT = """You are a routing classifier. Classify the user's query as GENERAL or PERSONAL.
+
+GENERAL: A pure textbook definition or explanation of a fundamental ML/CS concept. The query asks about core concepts, algorithms, or mechanisms with no applications, systems, or named products.
+
+PERSONAL: Everything else — technical architectures, how-to guides, news, events, people, companies, products, systems, applications, and any questions that might benefit from recent information or your personal reading history.
+
+Output ONLY the single word: GENERAL or PERSONAL. No explanation. No punctuation.
+
+Examples — GENERAL (pure fundamental concepts):
+- "what is a neural network?" → GENERAL
+- "explain backpropagation" → GENERAL
+- "what is cosine similarity?" → GENERAL
+- "how does attention work?" → GENERAL
+- "define overfitting" → GENERAL
+- "how does backpropagation work?" → GENERAL
+
+Examples — PERSONAL (everything else):
+- "what is RAG?" → PERSONAL (named system/product)
+- "explain transformer architecture" → PERSONAL (named architecture)
+- "agentic RAG systems" → PERSONAL (system/architecture)
+- "database indexing trade-offs" → PERSONAL (application/system design)
+- "what is the Karpathy Loop?" → PERSONAL (named concept)
+- "how does photosynthesis work?" → PERSONAL (biology, needs web)
+- "how to make risotto" → PERSONAL (how-to, needs web)
+- "latest news" → PERSONAL (recent info needed)
+
+Strict rules (apply in order, rules must be fully satisfied):
+1. If the query mentions photosynthesis, biology, physics, chemistry, cooking, history, geography, weather, Roman, ancient, medieval, fall of, Empire, or historical → PERSONAL
+2. If the query names any product, person, company (Google, Claude, Anthropic, Andrew Ng, Shopify, Bolt) → PERSONAL
+3. If the query contains: architecture, system, pattern, trade-off, framework, library, tool, how to, how do, current, latest, recent, stock, price → PERSONAL
+4. If the query contains "I read", "my digest", "you told me", "last time" → PERSONAL
+5. Only if ALL of the following are true, AND none of rules 1-4 triggered:
+   - Starts with "what is", "explain", "define", or "how does"
+   - AND does NOT contain proper nouns, brand names, or application-specific terms
+   - AND is about a fundamental CS/ML concept (algorithms, techniques, mathematical concepts, mechanisms - things found in a ML textbook)
+   → Then GENERAL
+6. All other cases → PERSONAL"""
+
+LLM_ONLY_SYSTEM_PROMPT = """You are a knowledgeable assistant. Answer the user's question clearly and concisely from your own knowledge.
+- Be concise and direct.
+- Do not reference any context documents, digests, or search results — there are none.
+- Do not hedge with "I don't have access to..." for general knowledge questions.
+- If you genuinely don't know the answer, say so briefly."""
+
 
 class SearchState(TypedDict):
     """Shared state across all graph nodes."""
@@ -96,6 +140,11 @@ class SearchState(TypedDict):
 
     # Routing
     explicit_web_detected: bool
+
+    # Intent classification
+    intent_class: Optional[str]       # "GENERAL" | "PERSONAL" | None
+    intent_classify_skipped: bool     # True if explicit_web_detected
+    llm_only_answer: Optional[str]    # Answer from generate_llm_answer
 
     # Internal retrieval
     docs: List[str]
@@ -186,11 +235,88 @@ def detect_explicit_web(state: SearchState) -> dict:
     return {"explicit_web_detected": explicit_web}
 
 
-def route_explicit_web(state: SearchState) -> Literal["web_search", "internal_retrieve"]:
+def route_explicit_web(state: SearchState) -> Literal["web_search", "classify_intent"]:
     """Route based on explicit web keywords."""
     if state.get("explicit_web_detected"):
         return "web_search"
+    return "classify_intent"
+
+
+def classify_intent(state: SearchState) -> dict:
+    """Classify query as GENERAL (LLM-only) or PERSONAL (needs retrieval/web)."""
+    if state.get("explicit_web_detected"):
+        return {"intent_class": "PERSONAL", "intent_classify_skipped": True}
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": INTENT_CLASSIFIER_PROMPT},
+                {"role": "user", "content": state["normalized_query"]},
+            ],
+            options={"temperature": 0},
+        )
+        raw = response.message.content.strip().upper()
+        intent = raw if raw in ("GENERAL", "PERSONAL") else "PERSONAL"
+        return {
+            "intent_class": intent,
+            "intent_classify_skipped": False,
+            "total_llm_tokens_in": getattr(response, 'prompt_eval_count', 0) or 0,
+            "total_llm_tokens_out": getattr(response, 'eval_count', 0) or 0,
+        }
+    except Exception as e:
+        return {
+            "intent_class": "PERSONAL",
+            "intent_classify_skipped": False,
+            "errors": [f"classify_intent error: {str(e)}"],
+        }
+
+
+def route_after_intent(state: SearchState) -> Literal["llm_only", "internal_retrieve"]:
+    """Route to LLM-only answer or internal retrieval based on intent classification."""
+    if state.get("intent_class") == "GENERAL":
+        return "llm_only"
     return "internal_retrieve"
+
+
+def route_after_llm_only(state: SearchState) -> Literal["internal_retrieve", Literal[END]]:
+    """If llm_only failed (Ollama error), fall back to internal_retrieve."""
+    if state.get("llm_only_answer") is None:
+        return "internal_retrieve"
+    return END
+
+
+def generate_llm_answer(state: SearchState) -> dict:
+    """Answer a GENERAL intent query using only LLM parametric knowledge — no retrieval."""
+    conv_history = state.get("conversation_history") or []
+    messages = [{"role": "system", "content": LLM_ONLY_SYSTEM_PROMPT}]
+
+    if conv_history:
+        history_lines = [
+            f"{'User' if t.get('role') == 'user' else 'Assistant'}: {t.get('content', '')}"
+            for t in conv_history
+        ]
+        messages.append({
+            "role": "user",
+            "content": f"Prior conversation:\n{chr(10).join(history_lines)}\n\n---\n\nQuestion: {state['normalized_query']}"
+        })
+    else:
+        messages.append({"role": "user", "content": state["normalized_query"]})
+
+    try:
+        response = ollama.chat(model=OLLAMA_MODEL, messages=messages)
+        answer = response.message.content
+        return {
+            "llm_only_answer": answer,
+            "final_output": answer,
+            "total_llm_tokens_in": getattr(response, 'prompt_eval_count', 0) or 0,
+            "total_llm_tokens_out": getattr(response, 'eval_count', 0) or 0,
+        }
+    except Exception as e:
+        return {
+            "llm_only_answer": None,
+            "final_output": None,
+            "errors": [f"generate_llm_answer error: {str(e)}"],
+        }
 
 
 def internal_retrieve(state: SearchState) -> dict:
@@ -467,6 +593,8 @@ def build_graph():
     graph.add_node("query_normalize", query_normalize)
     graph.add_node("index_sync", index_sync)
     graph.add_node("detect_explicit_web", detect_explicit_web)
+    graph.add_node("classify_intent", classify_intent)
+    graph.add_node("llm_only", generate_llm_answer)
     graph.add_node("internal_retrieve", internal_retrieve)
     graph.add_node(
         "judge_gate",
@@ -489,6 +617,8 @@ def build_graph():
     graph.add_edge("query_normalize", "index_sync")
     graph.add_edge("index_sync", "detect_explicit_web")
     graph.add_conditional_edges("detect_explicit_web", route_explicit_web)
+    graph.add_conditional_edges("classify_intent", route_after_intent)
+    graph.add_conditional_edges("llm_only", route_after_llm_only)
     graph.add_conditional_edges("internal_retrieve", route_after_retrieval)
     graph.add_conditional_edges("judge_gate", route_after_judge)
     graph.add_conditional_edges("generate_answer", route_after_generate)

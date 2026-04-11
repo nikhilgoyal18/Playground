@@ -98,6 +98,9 @@ def search():
         "top_k": top_k,
         "date_from": None,
         "explicit_web_detected": False,
+        "intent_class": None,
+        "intent_classify_skipped": False,
+        "llm_only_answer": None,
         "docs": [],
         "metas": [],
         "distances": [],
@@ -161,6 +164,8 @@ def search():
             "query": query,
             "normalized_query": final_state.get("normalized_query"),
             "explicit_web_detected": final_state.get("explicit_web_detected", False),
+            "intent_class": final_state.get("intent_class"),
+            "llm_only_used": final_state.get("intent_class") == "GENERAL" and final_state.get("llm_only_answer") is not None,
             "internal_attempted": final_state.get("chunks_passed_threshold") is not None,
             "top_chunk_distance": distances[0] if distances else None,
             "chunks_passed_threshold": final_state.get("chunks_passed_threshold"),
@@ -211,6 +216,8 @@ def search():
 
 def _classify_path(state):
     """Classify which path the search took."""
+    if state.get("intent_class") == "GENERAL" and state.get("llm_only_answer") is not None:
+        return "llm_only"
     if state.get("explicit_web_detected"):
         return "explicit_web"
     if state.get("web_was_fallback"):
