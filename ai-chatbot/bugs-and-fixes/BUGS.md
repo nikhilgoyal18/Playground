@@ -1,6 +1,6 @@
 # Search-News-Twitter: Bugs & Fixes
 
-**Last Updated:** 2026-04-08  
+**Last Updated:** 2026-04-11  
 **Tests Analyzed:** 71 (11 legacy + 50 original + 10 additional)  
 **Pass Rate:** 70.5% → ~76-80% after fixes
 
@@ -14,6 +14,8 @@
 | 2 | Low judge semantic scores | `graph.py` | ✅ Confirmed | 5 tests now pass |
 | 3 | False positive future events | `graph.py` | ⚠️ Partial | 1 identified |
 | 4 | Judge score string/int TypeError | `graph.py` | ✅ Fixed | Prevented 500 crashes |
+| 5 | LangGraph conditional edge routing | `graph.py` | ✅ Fixed | All paths now route correctly |
+| 6 | SQLite WAL checkpoint silently failing | `logger.py` | ✅ Fixed | IDs now returned on every query |
 
 **Failure categories (before fixes):**
 
@@ -188,6 +190,104 @@ Defense in depth. If the judge returns a string and we only cast at comparison t
 
 ### Key Learning
 Never trust LLM JSON field types. Always cast numeric fields to the expected type immediately upon extraction from LLM output, regardless of what the prompt instructs.
+
+---
+
+## Bug #5: LangGraph Conditional Edge Routing ✅ Fixed
+
+### Problem
+After implementing the intent pre-classifier (Bug #1 in feature_intent_classifier.md), queries routed to the `llm_only` path would crash with error:
+```
+"At 'llm_only' node, 'route_after_llm_only' branch found unknown target 'END'"
+```
+
+This caused all GENERAL queries to fall back to web search instead of using the fast LLM-only path.
+
+### Root Cause
+LangGraph's `add_conditional_edges()` uses type-based auto-discovery to map routing targets. When a routing function returns `END` (a special marker, not a node name), LangGraph couldn't resolve the target:
+
+```python
+# BROKEN:
+graph.add_conditional_edges("llm_only", route_after_llm_only)  # Auto-discovery fails on END
+```
+
+The issue affected all conditional edges in the graph: `detect_explicit_web`, `classify_intent`, `internal_retrieve`, `judge_gate`, `llm_only`, `generate_answer`.
+
+### Fix Applied (graph.py lines 615-645)
+Added explicit edge mappings for all conditional edges:
+
+```python
+# FIXED:
+graph.add_conditional_edges(
+    "llm_only",
+    route_after_llm_only,
+    {
+        "internal_retrieve": "internal_retrieve",
+        END: END,
+    }
+)
+```
+
+Applied the same fix to all 6 conditional edges.
+
+### Results
+- ✅ llm_only path now works correctly
+- ✅ Query "what is a neural network" → GENERAL → llm_only path (takes ~500ms)
+- ✅ Query "teach me about probability" → GENERAL → llm_only path
+- ✅ All other routing paths now route correctly
+
+### Key Learning
+LangGraph's type-based auto-discovery only works for node names. When routing functions return special values like `END`, you must provide an explicit edge mapping dictionary.
+
+---
+
+## Bug #6: SQLite WAL Checkpoint Silently Failing ✅ Fixed
+
+### Problem
+After fixes to Bug #5 were deployed, queries executed successfully but:
+- No `id` (database row ID) was returned to the UI
+- No database log entry was created
+- The graph ran to completion, but logging failed silently
+
+### Root Cause
+The `PRAGMA wal_checkpoint(RESTART)` statement in `logger.py:146` was timing out under concurrent load:
+
+```python
+with sqlite3.connect(DB_PATH, timeout=10) as conn:
+    cursor = conn.execute(INSERT_SQL, row)
+    inserted_id = cursor.lastrowid
+    conn.commit()
+    conn.execute("PRAGMA wal_checkpoint(RESTART)")  # This was timing out
+    conn.commit()
+    return inserted_id
+```
+
+The checkpoint timeout was silently caught by the outer try/except in `app.py`, leaving `search_id = None`.
+
+### Fix Applied (logger.py lines 102-148)
+Removed the aggressive WAL checkpoint. SQLite handles checkpointing naturally:
+
+```python
+def save_log(log: dict):
+    # ... build row dict ...
+    try:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
+            cursor = conn.execute(INSERT_SQL, row)
+            inserted_id = cursor.lastrowid
+            conn.commit()
+            return inserted_id  # Return immediately after commit
+    except Exception as e:
+        print(f"ERROR in save_log: {e}")
+        raise  # Propagate for visibility
+```
+
+### Results
+- ✅ Query "what is a neural network" → id=25, path=llm_only
+- ✅ Query "teach me about probability" → id=26, path=llm_only
+- ✅ All subsequent queries return valid IDs and log successfully
+
+### Key Learning
+Explicit WAL checkpoints are aggressive and can timeout under concurrent load. Let SQLite's built-in checkpointing handle it. Always propagate exceptions instead of silently returning None.
 
 ---
 
