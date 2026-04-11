@@ -616,12 +616,54 @@ def build_graph():
     graph.add_edge(START, "query_normalize")
     graph.add_edge("query_normalize", "index_sync")
     graph.add_edge("index_sync", "detect_explicit_web")
-    graph.add_conditional_edges("detect_explicit_web", route_explicit_web)
-    graph.add_conditional_edges("classify_intent", route_after_intent)
-    graph.add_conditional_edges("llm_only", route_after_llm_only)
-    graph.add_conditional_edges("internal_retrieve", route_after_retrieval)
-    graph.add_conditional_edges("judge_gate", route_after_judge)
-    graph.add_conditional_edges("generate_answer", route_after_generate)
+    graph.add_conditional_edges(
+        "detect_explicit_web",
+        route_explicit_web,
+        {
+            "web_search": "web_search",
+            "classify_intent": "classify_intent",
+        }
+    )
+    graph.add_conditional_edges(
+        "classify_intent",
+        route_after_intent,
+        {
+            "llm_only": "llm_only",
+            "internal_retrieve": "internal_retrieve",
+        }
+    )
+    graph.add_conditional_edges(
+        "llm_only",
+        route_after_llm_only,
+        {
+            "internal_retrieve": "internal_retrieve",
+            END: END,
+        }
+    )
+    graph.add_conditional_edges(
+        "internal_retrieve",
+        route_after_retrieval,
+        {
+            "web_search": "web_search",
+            "judge_gate": "judge_gate",
+        }
+    )
+    graph.add_conditional_edges(
+        "judge_gate",
+        route_after_judge,
+        {
+            "web_search": "web_search",
+            "generate_answer": "generate_answer",
+        }
+    )
+    graph.add_conditional_edges(
+        "generate_answer",
+        route_after_generate,
+        {
+            "web_search": "web_search",
+            END: END,
+        }
+    )
     graph.add_edge("web_search", END)
 
     return graph.compile()

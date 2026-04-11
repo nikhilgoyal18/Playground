@@ -138,14 +138,17 @@ def save_log(log: dict):
         "total_llm_tokens_out": log.get("total_llm_tokens_out"),
         "conversation_id": log.get("conversation_id"),
     }
-    with sqlite3.connect(DB_PATH, timeout=10) as conn:
-        cursor = conn.execute(INSERT_SQL, row)
-        inserted_id = cursor.lastrowid
-        conn.commit()
-        # Explicit WAL checkpoint to flush to disk immediately
-        conn.execute("PRAGMA wal_checkpoint(RESTART)")
-        conn.commit()
-        return inserted_id
+    try:
+        with sqlite3.connect(DB_PATH, timeout=10) as conn:
+            cursor = conn.execute(INSERT_SQL, row)
+            inserted_id = cursor.lastrowid
+            conn.commit()
+            return inserted_id
+    except Exception as e:
+        print(f"ERROR in save_log: {e}")
+        import traceback
+        traceback.print_exc()
+        raise  # Let caller handle it
 
 
 def _opt_int(value):
