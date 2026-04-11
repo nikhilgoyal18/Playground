@@ -25,7 +25,7 @@ Both invoke the same LangGraph pipeline:
 | `search.py` | CLI entry point — single-shot query mode |
 | `app.py` | Flask web server — serves the chatbot UI at `http://localhost:5001` |
 | `templates/index.html` | Chat UI — conversation history, clear chat, source citations, log details |
-| `graph.py` | LangGraph pipeline: 8 nodes, typed state, per-node retry logic |
+| `graph.py` | LangGraph pipeline: 9 nodes (query_normalize, index_sync, detect_explicit_web, classify_intent, llm_only, internal_retrieve, judge_gate, generate_answer, web_search), typed state, per-node retry logic |
 | `index.py` | Parses summaries into bullet-level chunks, embeds, upserts to ChromaDB |
 | `web_search.py` | DuckDuckGo integration + Ollama-based summarization (conversation-aware) |
 | `logger.py` | SQLite persistence layer — includes `conversation_id` for multi-turn tracing |
@@ -33,6 +33,7 @@ Both invoke the same LangGraph pipeline:
 | `data/query_cache.json` | Query normalization cache (auto-managed) |
 | `data/search_logs.db` | SQLite audit trail: routing decisions, judge scores, durations, conversation IDs |
 | `db/chroma/` | ChromaDB persistent vector store (auto-created, do not commit) |
+| `eval/METRICS_AND_GUARDRAILS.md` | Evaluation metrics, guardrails, baselines, and SQL queries for production analysis |
 | `eval/` | Evaluation harness — run `python3 eval/run_eval.py` to check pass rates |
 | `bugs-and-fixes/BUGS.md` | Bug tracking and fix history |
 | `CHUNKING_STRATEGY.md` | Read when modifying `index.py` or changing chunking behavior |
