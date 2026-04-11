@@ -4,7 +4,7 @@ A collection of intelligent automation tools for extracting insights from newsle
 
 **Vision:** Turn information overload into actionable insights by combining topic classification, semantic search, and opportunity ranking — all locally when possible.
 
-**Status:** Active development | **Last Updated:** 2026-04-06
+**Status:** Active development | **Last Updated:** 2026-04-11
 
 ---
 
@@ -123,9 +123,14 @@ Semantic search and intelligent Q&A across all your digests with fallback to liv
 
 ### Architecture
 
-**RAG Pipeline with Three-Part Flow:**
+**RAG Pipeline with Four-Part Flow:**
 
-1. **Smart Routing**
+1. **Intent Classification**
+   - Classify query as GENERAL (pure textbook ML/CS concepts) or PERSONAL (everything else)
+   - GENERAL queries bypass RAG entirely and get fast parametric answers from LLM (~500ms)
+   - PERSONAL queries proceed to smart routing below
+
+2. **Smart Routing**
    - Detect if query needs current/live data (keywords: "latest", "today", "breaking", "stock price")
    - If live data needed → skip internal, go straight to web
    - If historical/knowledge question → try internal first
@@ -134,6 +139,7 @@ Semantic search and intelligent Q&A across all your digests with fallback to liv
    - **Chunking:** Newsletter and Twitter digests chunked at bullet-level precision (not topic-level). Each bullet point becomes its own searchable chunk with topic/author context retained.
    - **Vectorization:** Query and chunks embedded locally using `sentence-transformers` (all-MiniLM-L6-v2 model, ~22 MB). No external embeddings API.
    - **Storage:** Embeddings persisted in **ChromaDB** vector database for fast semantic similarity search.
+   - **Distance Gate:** Chunks with retrieval distance > 0.8 are rejected (poor semantic match).
    - **Intent Validation:** Retrieved chunks passed through LLM judge that scores semantic match (0-10). Only chunks with score ≥5 proceed (eliminates low-confidence matches).
    - **Generation:** Relevant chunks passed to LLM to synthesize cited answer with `[Source N]` references.
 
@@ -142,7 +148,12 @@ Semantic search and intelligent Q&A across all your digests with fallback to liv
    - Summarize web results and cite sources
    - Ensures current data when knowledge base is incomplete
 
+**Quality Assurance & Metrics:** See `ai-chatbot/eval/METRICS_AND_GUARDRAILS.md` for evaluation metrics (11 items), active guardrails (15 items), baseline performance (76-80% pass rate on 71 test cases), and SQL audit queries for production monitoring.
+
 ### Key Technical Insights
+
+**Intent Pre-Classifier:**
+Before expensive retrieval, queries are classified as GENERAL (pure concepts) or PERSONAL (applications). GENERAL queries skip RAG entirely and get parametric answers in ~500ms. Achieves 100% accuracy on validation set. Conservative definition (5.2% hit rate) minimizes hallucination risk.
 
 **Bullet-Level Chunking:**
 Each bullet under a topic heading becomes its own chunk, not entire topics. This enables granular retrieval — you get exactly the relevant bullet, not a topic block containing 10 tangential bullets.
@@ -150,11 +161,14 @@ Each bullet under a topic heading becomes its own chunk, not entire topics. This
 **Local Embeddings:**
 Vector computations happen locally (no embedding API cost or latency). Query embedding + similarity search are instant. ~22 MB model cached after first run.
 
+**Distance-Based Quality Gate:**
+Before judge evaluation, chunks with retrieval distance > 0.8 are rejected automatically. Prevents poor matches from even reaching the LLM judge.
+
 **Judge Gate:**
-LLM validates that retrieved content actually matches intent (prevents false positive retrievals). Score threshold (≥5) acts as quality filter. Retries up to 3 times on parse errors to ensure reliability.
+LLM validates that retrieved content actually matches intent (prevents false positive retrievals). Score threshold (≥5) acts as quality filter. Retries up to 3 times on parse errors to ensure reliability. Temporal validation rejects future events.
 
 **All Decisions Logged:**
-Every search decision (route choice, chunks retrieved, judge score, fallback trigger) logged to SQLite. Enables analysis of system performance and user behavior over time.
+Every search decision (route choice, chunks retrieved, judge score, fallback trigger) logged to SQLite. Enables analysis of system performance and user behavior over time. Conversation IDs track multi-turn coherence.
 
 ---
 
