@@ -1,0 +1,10 @@
+[18:37:41] === Daily Digest Starting — 2026-04-13 ===
+[18:37:41] [Twitter] Digest already exists for today — skipping (idempotent)
+[18:37:41] [Newsletter] Digest already exists for today — skipping (idempotent)
+[18:37:41] [Git] Staging changes...
+To https://github.com/nikhilgoyal18/Playground.git
+   10ba332..c09fa62  main -> main
+[18:37:42] [Git] Pushed to GitHub
+[18:37:42] ERROR: Daily digest failed (exit 141)
+[18:37:42] === Daily Digest Complete ===
+[18:37:42] ERROR: Daily digest failed (exit 141)

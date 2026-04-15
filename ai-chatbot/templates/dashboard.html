@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Dashboard - AI Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 20px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header a {
+            color: #2563eb;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 16px;
+            border: 1px solid #2563eb;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .header a:hover {
+            background: #eff6ff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            color: #999;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .stat-card.negative {
+            border-left: 4px solid #dc2626;
+        }
+
+        .stat-card .percent {
+            font-size: 14px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .section h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f9f9f9;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .path-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .feedback-up {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #d1fae5;
+            color: #065f46;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .feedback-down {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .query-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .output-preview {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #666;
+            font-family: "Monaco", "Menlo", monospace;
+            font-size: 11px;
+        }
+
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .error {
+            background: #fee;
+            color: #dc2626;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin: 20px;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Feedback Dashboard</h1>
+        <a href="/">← Back to Chat</a>
+    </div>
+
+    <div class="container">
+        <div id="loading" class="loading">Loading statistics...</div>
+
+        <div id="content" style="display: none;">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Total Queries</div>
+                    <div class="value" id="totalQueries">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">% Positive</div>
+                    <div class="value" id="percentPositive">—</div>
+                    <div class="percent" id="positiveCounts"></div>
+                </div>
+                <div class="stat-card negative">
+                    <div class="label">Thumbs Down</div>
+                    <div class="value" id="downCount">—</div>
+                    <div class="percent" id="downPercent"></div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Web Fallback Failures</div>
+                    <div class="value" id="webFallbackFailures">—</div>
+                </div>
+            </div>
+
+            <!-- Failures by Path -->
+            <div class="section">
+                <h2>Failures by Pipeline Path</h2>
+                <table id="byPathTable">
+                    <thead>
+                        <tr>
+                            <th>Path</th>
+                            <th>👎 Down</th>
+                            <th>👍 Up</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="byPathBody"></tbody>
+                </table>
+                <div id="emptyPath" class="empty" style="display: none;">No feedback data yet</div>
+            </div>
+
+            <!-- Judge Scores on Negatives -->
+            <div class="section">
+                <h2>Judge Score Distribution (Negative Feedback)</h2>
+                <table id="judgeScoresTable">
+                    <thead>
+                        <tr>
+                            <th>Judge Score</th>
+                            <th>Count</th>
+                            <th>Distribution</th>
+                        </tr>
+                    </thead>
+                    <tbody id="judgeScoresBody"></tbody>
+                </table>
+                <div id="emptyJudge" class="empty" style="display: none;">No data yet</div>
+            </div>
+
+            <!-- Recent Feedback -->
+            <div class="section">
+                <h2>Recent Feedback (All)</h2>
+                <table id="recentTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Feedback</th>
+                            <th>Query</th>
+                            <th>Path</th>
+                            <th>Judge</th>
+                            <th>Preview</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentBody"></tbody>
+                </table>
+                <div id="emptyRecent" class="empty" style="display: none;">No feedback yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            try {
+                const res = await fetch("/api/feedback-stats");
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                // Update overall stats
+                const overall = data.overall;
+                document.getElementById("totalQueries").textContent = overall.total;
+                document.getElementById("percentPositive").textContent = `${overall.pct_positive}%`;
+                document.getElementById("positiveCounts").textContent = `${overall.up} up, ${overall.down} down`;
+                document.getElementById("downCount").textContent = overall.down;
+                document.getElementById("downPercent").textContent = overall.total > 0
+                    ? `${((100 * overall.down) / overall.total).toFixed(1)}% of all`
+                    : "—";
+
+                // Count web_fallback failures
+                const webFailures = data.by_path.find(p => p.path === "web_fallback")?.down_count || 0;
+                document.getElementById("webFallbackFailures").textContent = webFailures;
+
+                // Populate by_path table
+                const byPathBody = document.getElementById("byPathBody");
+                const emptyPath = document.getElementById("emptyPath");
+                if (data.by_path.length > 0) {
+                    byPathBody.innerHTML = data.by_path.map(row => `
+                        <tr>
+                            <td><span class="path-badge">${row.path || "unknown"}</span></td>
+                            <td>${row.down_count || 0}</td>
+                            <td>${row.up_count || 0}</td>
+                            <td>${row.total || 0}</td>
+                        </tr>
+                    `).join("");
+                    emptyPath.style.display = "none";
+                } else {
+                    emptyPath.style.display = "block";
+                }
+
+                // Populate judge scores table
+                const judgeBody = document.getElementById("judgeScoresBody");
+                const emptyJudge = document.getElementById("emptyJudge");
+                if (data.judge_scores_on_negatives.length > 0) {
+                    const maxCount = Math.max(...data.judge_scores_on_negatives.map(r => r.count || 0));
+                    judgeBody.innerHTML = data.judge_scores_on_negatives.map(row => {
+                        const barWidth = maxCount > 0 ? (row.count / maxCount) * 100 : 0;
+                        return `
+                            <tr>
+                                <td><span class="score-badge">${row.judge_score}/10</span></td>
+                                <td>${row.count}</td>
+                                <td style="position: relative;">
+                                    <div style="background: #dbeafe; height: 20px; width: ${barWidth}%; border-radius: 2px; display: inline-block; min-width: 4px;"></div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join("");
+                    emptyJudge.style.display = "none";
+                } else {
+                    emptyJudge.style.display = "block";
+                }
+
+                // Populate recent feedback table
+                const recentBody = document.getElementById("recentBody");
+                const emptyRecent = document.getElementById("emptyRecent");
+                if (data.recent_negatives.length > 0) {
+                    recentBody.innerHTML = data.recent_negatives.map(row => {
+                        const timestamp = new Date(row.timestamp).toLocaleString();
+                        const feedbackBadge = row.feedback === 'up'
+                            ? `<span class="feedback-up">👍 Up</span>`
+                            : `<span class="feedback-down">👎 Down</span>`;
+                        return `
+                            <tr>
+                                <td><strong>${row.id}</strong></td>
+                                <td>${feedbackBadge}</td>
+                                <td><div class="query-cell" title="${row.query}">${row.query}</div></td>
+                                <td><span class="path-badge">${row.path || "unknown"}</span></td>
+                                <td>${row.judge_score !== null ? `${row.judge_score}/10` : "—"}</td>
+                                <td><div class="output-preview" title="${row.output_preview}">${row.output_preview}</div></td>
+                                <td><span class="timestamp">${timestamp}</span></td>
+                            </tr>
+                        `;
+                    }).join("");
+                    emptyRecent.style.display = "none";
+                } else {
+                    emptyRecent.style.display = "block";
+                }
+
+                // Show content, hide loading
+                document.getElementById("loading").style.display = "none";
+                document.getElementById("content").style.display = "block";
+            } catch (err) {
+                console.error("Failed to load stats:", err);
+                document.getElementById("loading").innerHTML = `<div class="error">Failed to load statistics: ${err.message}</div>`;
+            }
+        }
+
+        // Load stats on page load
+        loadStats();
+
+        // Refresh every 30 seconds
+        setInterval(loadStats, 30000);
+    </script>
+</body>
+</html>

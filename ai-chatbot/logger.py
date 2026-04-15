@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS searches (
     web_was_fallback            INTEGER,
     web_result_count            INTEGER,
     web_succeeded               INTEGER,
+    web_no_content_response     INTEGER,
+    hallucination_risk          INTEGER,
+    path                        TEXT,
 
     final_output                TEXT,
     error                       TEXT,
@@ -58,7 +61,7 @@ INSERT INTO searches (
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
     judge_reasoning, judge_parse_error,
     internal_answer_generated, internal_no_content_response, internal_succeeded,
-    web_attempted, web_was_fallback, web_result_count, web_succeeded,
+    web_attempted, web_was_fallback, web_result_count, web_succeeded, web_no_content_response, hallucination_risk, path,
     final_output, error, total_llm_tokens_in, total_llm_tokens_out,
     conversation_id
 ) VALUES (
@@ -68,7 +71,7 @@ INSERT INTO searches (
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
     :judge_reasoning, :judge_parse_error,
     :internal_answer_generated, :internal_no_content_response, :internal_succeeded,
-    :web_attempted, :web_was_fallback, :web_result_count, :web_succeeded,
+    :web_attempted, :web_was_fallback, :web_result_count, :web_succeeded, :web_no_content_response, :hallucination_risk, :path,
     :final_output, :error, :total_llm_tokens_in, :total_llm_tokens_out,
     :conversation_id
 )
@@ -100,6 +103,21 @@ def init_db():
         # Migrate existing DBs: add feedback column if missing
         try:
             conn.execute("ALTER TABLE searches ADD COLUMN feedback TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        # Migrate existing DBs: add web_no_content_response column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN web_no_content_response INTEGER")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        # Migrate existing DBs: add hallucination_risk column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN hallucination_risk INTEGER")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        # Migrate existing DBs: add path column if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN path TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
         conn.commit()
@@ -138,6 +156,9 @@ def save_log(log: dict):
         "web_was_fallback": _opt_int(log.get("web_was_fallback")),
         "web_result_count": log.get("web_result_count"),
         "web_succeeded": _opt_int(log.get("web_succeeded")),
+        "web_no_content_response": _opt_int(log.get("web_no_content_response")),
+        "hallucination_risk": _opt_int(log.get("hallucination_risk")),
+        "path": log.get("path"),
         "final_output": _truncate(log.get("final_output"), 2000),
         "error": log.get("error"),
         "total_llm_tokens_in": log.get("total_llm_tokens_in"),

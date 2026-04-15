@@ -68,6 +68,16 @@ SPECIFIC TERM MATCHING:
   * Query "how does RAG work?" + chunks mentioning RAG system = Score ≥6 (ACCEPT)
 - Semantic equivalence is OK for known concepts, but NOT for novel acronyms/terms
 
+COMPOUND QUERY MATCHING (person + topic):
+- If query contains a NAMED PERSON and a DISTINCT SECONDARY TOPIC (e.g., "what does [Person] say about [Topic]?"):
+  * Chunks MUST address BOTH the person AND the secondary topic.
+  * The person's name alone is NOT sufficient — the topic keyword(s) must also be covered.
+  * Examples:
+    - Query "what does Chamath say about scaling fast organizations?" + chunk about "Chamath equity yields" → Score ≤3 (REJECT - wrong topic)
+    - Query "what does Jensen say about AI chip design?" + chunk about "Jensen supply chain" → Score ≤3 (REJECT - wrong topic)
+    - Query "what does Chamath say about scaling orgs?" + chunk about "Chamath on building fast-growing companies" → Score 6-7 (ACCEPT - topic matches)
+  * Do NOT accept topical mismatch just because the person's name appears.
+
 CORE TOPIC MATCHING (WITH DISTANCE CONSIDERATION):
 - If chunks mention main entities AND distance < 0.5: score ≥6
 - If chunks mention main entities BUT distance > 0.65: score ≤4 (poor retrieval, reject)
@@ -168,6 +178,8 @@ class SearchState(TypedDict):
     web_result_count: int
     web_succeeded: bool
     web_was_fallback: bool
+    web_no_content_response: bool
+    hallucination_risk: bool
 
     # Audit
     final_output: Optional[str]
@@ -529,27 +541,59 @@ def generate_web_answer(state: SearchState) -> dict:
         conversation_history=conv_history,
     )
 
-    # web_search returns (answer, result_count, tokens_in, tokens_out)
-    if isinstance(result, tuple) and len(result) == 4:
+    # web_search returns (answer, result_count, tokens_in, tokens_out, grounded)
+    grounded = True  # default: assume grounded
+    if isinstance(result, tuple) and len(result) == 5:
+        answer, result_count, tokens_in, tokens_out, grounded = result
+    elif isinstance(result, tuple) and len(result) == 4:
         answer, result_count, tokens_in, tokens_out = result
+        grounded = True
     elif isinstance(result, tuple) and len(result) == 2:
         # Backward compatibility with old 2-tuple format
         answer, result_count = result
         tokens_in, tokens_out = 0, 0
+        grounded = True
     else:
         # Fallback for other return types
         answer = result
         result_count = tokens_in = tokens_out = 0
+        grounded = True
+
+    # Detect non-answer phrases (when web search returns the prescribed "no content" response)
+    WEB_NO_CONTENT_PHRASES = [
+        "search results don't contain enough information",
+        "results don't contain enough",
+        "couldn't find enough information",
+        "not enough information in the search results",
+        "unable to answer",
+        "no relevant information",
+    ]
+    web_no_content = any(phrase in (answer or "").lower() for phrase in WEB_NO_CONTENT_PHRASES)
+
+    # Set web_succeeded False if we got a non-answer response
+    web_succeeded_flag = bool(answer) and not web_no_content
+
+    # Compute hallucination risk: flag when ANY of these conditions hold
+    hallucination_risk = (
+        web_no_content  # Non-answer response detected
+        or result_count < 2  # Very thin evidence base (0-1 results)
+        or not grounded  # Proper nouns in query don't appear in results
+    )
 
     # web_was_fallback = True if we got here because internal failed, not explicit web
     was_fallback = not state.get("explicit_web_detected", False)
 
+    # Don't return non-answer text as final output — it's not a real answer
+    final_output = None if web_no_content else (answer or None)
+
     return {
         "web_answer": answer or None,
-        "web_succeeded": bool(answer),       # True only if answer has content
+        "web_succeeded": web_succeeded_flag,
+        "web_no_content_response": web_no_content,
         "web_result_count": result_count,
         "web_was_fallback": was_fallback,
-        "final_output": answer or None,
+        "hallucination_risk": hallucination_risk,
+        "final_output": final_output,
         "total_llm_tokens_in": tokens_in,
         "total_llm_tokens_out": tokens_out,
     }

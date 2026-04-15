@@ -1,21 +1,25 @@
 # Search-News-Twitter: Bugs & Fixes
 
-**Last Updated:** 2026-04-11  
-**Tests Analyzed:** 71 (11 legacy + 50 original + 10 additional)  
-**Pass Rate:** 70.5% → ~76-80% after fixes
+**Last Updated:** 2026-04-12  
+**Bugs Fixed:** 10 (6 from eval, 4 from production feedback)  
+**Pass Rate:** 70.5% → ~76-80% (eval tests); 0% → 100% positive feedback (dashboard)
 
 ---
 
 ## Overview
 
-| # | Bug | File | Status | Tests Fixed |
-|---|-----|------|--------|-------------|
+| # | Bug | File | Status | Impact |
+|---|-----|------|--------|--------|
 | 1 | Substring keyword matching | `graph.py` | ⚠️ Partial | 1 confirmed, 2 ambiguous |
-| 2 | Low judge semantic scores | `graph.py` | ✅ Confirmed | 5 tests now pass |
+| 2 | Low judge semantic scores | `graph.py` | ✅ Confirmed | 5+ tests now pass |
 | 3 | False positive future events | `graph.py` | ⚠️ Partial | 1 identified |
 | 4 | Judge score string/int TypeError | `graph.py` | ✅ Fixed | Prevented 500 crashes |
 | 5 | LangGraph conditional edge routing | `graph.py` | ✅ Fixed | All paths now route correctly |
 | 6 | SQLite WAL checkpoint silently failing | `logger.py` | ✅ Fixed | IDs now returned on every query |
+| 7 | Weak judge on person+topic queries | `graph.py` | ✅ Fixed | Off-topic matches rejected |
+| 8 | Web fallback non-answers returned anyway | `graph.py`, `app.py` | ✅ Fixed | Non-answers excluded from output |
+| 9 | No hallucination risk signaling | `graph.py`, `web_search.py`, `templates/` | ✅ Fixed | Warning badges on ungrounded answers |
+| 10 | No feedback visibility | `app.py`, `templates/`, `logger.py` | ✅ Fixed | Dashboard shows patterns |
 
 **Failure categories (before fixes):**
 
@@ -288,6 +292,143 @@ def save_log(log: dict):
 
 ### Key Learning
 Explicit WAL checkpoints are aggressive and can timeout under concurrent load. Let SQLite's built-in checkpointing handle it. Always propagate exceptions instead of silently returning None.
+
+---
+
+## Bug #7: Weak Judge on Person+Topic Queries ✅ Fixed
+
+### Problem
+Queries asking about a person + topic (e.g., "what does Chamath say about scaling orgs?") scored high (judge score 8) when chunks only mentioned the person but discussed a completely different topic.
+
+**Production failure:** id 33
+- Query: "what does chamath say about scaling fast organizations?"
+- Judge score: 8 (good)
+- Retrieved chunk: "Chamath + equity yields" (wrong topic)
+- Result: verbose non-answer from web fallback
+
+### Root Cause
+Judge prompt's "CORE TOPIC MATCHING" rule only required main entities to appear, not the secondary topic keyword. Judge didn't validate that both parts of the query were covered.
+
+### Fix Applied (graph.py, JUDGE_PROMPT)
+Added new "COMPOUND QUERY MATCHING" rule:
+```
+- If query contains PERSON + TOPIC (e.g., "what does X say about Y?"):
+  * Chunk MUST address BOTH the person AND the topic
+  * Person name alone is NOT sufficient
+  * Example: "Chamath + scaling" chunk is wrong for "Chamath + equity yields" query
+  * Score such matches ≤3 (REJECT)
+```
+
+### Results
+✅ Judge now rejects off-topic person matches. Prevents high-confidence wrong answers.
+
+---
+
+## Bug #8: Web Fallback Non-Answers Returned Anyway ✅ Fixed
+
+### Problem
+When web search generated a non-answer (e.g., "search results don't contain enough information"), the system still marked `web_succeeded = True` and returned the verbose non-answer to the user instead of indicating failure.
+
+**Production failure:** id 33, id 35
+- Web fallback found thin evidence (1 result)
+- Ollama generated non-answer response
+- System returned non-answer as a successful answer
+
+### Root Cause
+`generate_web_answer()` set `web_succeeded = bool(answer)` — any non-empty string was marked as success, regardless of whether it was actually answering the question.
+
+### Fix Applied
+1. Added phrase detection to identify non-answers:
+   ```python
+   WEB_NO_CONTENT_PHRASES = [
+       "search results don't contain enough information",
+       "results don't contain enough",
+       "couldn't find enough information",
+       "not enough information in the search results",
+       "unable to answer",
+       "no relevant information",
+   ]
+   web_no_content = any(phrase in answer.lower() for phrase in WEB_NO_CONTENT_PHRASES)
+   ```
+
+2. Set `web_succeeded = False` when non-answer detected
+3. Set `final_output = None` to prevent returning non-answer text to user
+4. Added `web_no_content_response` column to DB to track these cases
+
+### Results
+✅ Non-answer responses are now detected and NOT returned. User sees empty result instead of confusing filler text.
+
+---
+
+## Bug #9: No Hallucination Risk Signaling ✅ Fixed
+
+### Problem
+When web search returned confident but false statements (e.g., "Claude Mythos escaped sandbox and hacked the internet"), there was no warning to the user.
+
+**Production failure:** id 30
+- Query: "what is mythos by anthropic?"
+- Web returned: fabricated facts about non-existent product
+- User had no indication the answer was unreliable
+
+### Root Cause
+No validation of web answers for hallucination risk. System returned web answers as-is without checking if proper nouns or key facts were grounded in sources.
+
+### Fix Applied
+1. Modified `web_search()` to extract proper nouns from query and check if they appear in results
+2. Returns 5th tuple element: `grounded: bool`
+3. Added `hallucination_risk` flag when ANY of:
+   - `web_no_content_response = True` (non-answer detected)
+   - `web_result_count < 2` (thin evidence base)
+   - Proper nouns don't appear in results (ungrounded)
+4. Added UI warning badge: yellow banner with ⚠️ icon
+5. Added `hallucination_risk` column to DB
+
+### Results
+✅ Answers with thin evidence or ungrounded facts now show warning badge. Users can see when to be skeptical.
+
+---
+
+## Bug #10: No Feedback Visibility in Dashboard ✅ Fixed
+
+### Problem
+Negative feedback (thumbs down) was logged to DB but had no aggregate view. Dashboard didn't exist; users had to run manual SQL queries to spot patterns.
+
+**Production issue:** id 30, id 33, id 36+ continued showing up without visibility into feedback patterns
+
+### Root Cause
+Feedback was logged but not analyzed. No dashboard existed to surface patterns like "web_fallback path has 100% failure rate" or "judge score 8 doesn't guarantee good answers".
+
+### Fix Applied
+1. Added `path` column to DB to track which pipeline stage each query took
+2. Created `/api/feedback-stats` endpoint returning:
+   - Overall stats (total, up, down, % positive)
+   - Failures by path
+   - Judge score distribution on negative feedback
+   - Recent 20 feedback entries (both up and down)
+3. Created `/dashboard` route serving new `templates/dashboard.html`
+4. Dashboard auto-refreshes every 30 seconds
+5. Shows both 👍 up and 👎 down feedback with color coding
+6. Added "📊 Dashboard" link in chat UI header
+
+### Results
+✅ Feedback patterns now visible at a glance. Can quickly identify which paths/judge scores are failing.
+
+---
+
+## Updated Overview Table
+
+| # | Bug | Status | Impact |
+|---|-----|--------|--------|
+| 1 | Substring keyword matching | ✅ Fixed | 1 test fixed, 2 ambiguous keywords identified |
+| 2 | Low judge semantic scores | ✅ Fixed | 5+ tests fixed |
+| 3 | False positive future events | ⚠️ Partial | Temporal rule added, not 100% reliable |
+| 4 | Judge score string/int TypeError | ✅ Fixed | Prevented 500 crashes |
+| 5 | LangGraph conditional edge routing | ✅ Fixed | All paths now route correctly |
+| 6 | SQLite WAL checkpoint silently failing | ✅ Fixed | All queries now log and return IDs |
+| 7 | Weak judge on person+topic queries | ✅ Fixed | Off-topic person matches now rejected |
+| 8 | Web fallback non-answers returned anyway | ✅ Fixed | Non-answers detected and excluded |
+| 9 | No hallucination risk signaling | ✅ Fixed | Warning badges show ungrounded answers |
+| 10 | No feedback visibility | ✅ Fixed | Dashboard shows patterns automatically |
 
 ---
 

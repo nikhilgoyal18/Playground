@@ -53,7 +53,23 @@
       "Bash(python3.14)",
       "Bash(curl -s http://localhost:5001)",
       "Bash(lsof -ti:5001)",
-      "Bash(grep -E '\\\\.\\(py|md\\)$')"
+      "Bash(grep -E '\\\\.\\(py|md\\)$')",
+      "Bash(grep -E '\\\\.\\(md|py\\)$')",
+      "Bash(python3 app.py)",
+      "Bash(echo \"Server started, PID: $!\")",
+      "Bash(curl -s http://localhost:5001/)",
+      "Bash(kill %1)",
+      "Bash(pkill -9 -f \"app.py\")",
+      "Bash(pkill -9 -f \"run_eval\")",
+      "Bash(git:*)",
+      "Bash(crontab -l)",
+      "Bash(grep -E \"\\\\.\\(md|json\\)$\")",
+      "Bash(launchctl list:*)",
+      "Bash(launchctl stop:*)",
+      "Bash(launchctl start:*)",
+      "Bash(launchctl unload:*)",
+      "Bash(launchctl load:*)",
+      "Skill(schedule)"
     ]
   }
 }

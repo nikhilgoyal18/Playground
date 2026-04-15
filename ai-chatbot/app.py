@@ -118,6 +118,8 @@ def search():
         "web_result_count": 0,
         "web_succeeded": False,
         "web_was_fallback": False,
+        "web_no_content_response": False,
+        "hallucination_risk": False,
         "final_output": None,
         "errors": [],
         "duration_ms": None,
@@ -154,6 +156,9 @@ def search():
 
     sources = list(unique_sources.values())
 
+    # Compute path for logging and response
+    path = _classify_path(final_state)
+
     # Log the search (if logging is available) and get the ID
     search_id = None
     print(f"DEBUG: About to log search for query: {query}")
@@ -182,6 +187,9 @@ def search():
             "web_was_fallback": final_state.get("web_was_fallback", False),
             "web_result_count": final_state.get("web_result_count", 0),
             "web_succeeded": final_state.get("web_succeeded", False),
+            "web_no_content_response": final_state.get("web_no_content_response", False),
+            "hallucination_risk": final_state.get("hallucination_risk", False),
+            "path": path,
             "final_output": final_state.get("final_output"),
             "duration_ms": duration_ms,
             "total_llm_tokens_in": final_state.get("total_llm_tokens_in", 0),
@@ -206,9 +214,10 @@ def search():
         "tokens_in": final_state.get("total_llm_tokens_in", 0),
         "tokens_out": final_state.get("total_llm_tokens_out", 0),
         "duration_ms": duration_ms,
-        "path": _classify_path(final_state),
+        "path": path,
         "judge_score": final_state.get("judge_score"),
         "web_result_count": final_state.get("web_result_count", 0),
+        "hallucination_risk": final_state.get("hallucination_risk", False),
     }
 
     return jsonify(response), 200
@@ -242,6 +251,103 @@ def feedback():
         return jsonify({"error": "Search ID not found"}), 404
 
     return jsonify({"ok": True}), 200
+
+
+@app.route("/api/feedback-stats", methods=["GET"])
+def feedback_stats():
+    """
+    Return aggregate feedback statistics for the dashboard.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    db_path = Path(__file__).parent / "data" / "search_logs.db"
+    try:
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Overall stats
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN feedback = 'up' THEN 1 ELSE 0 END) as up_count,
+                    SUM(CASE WHEN feedback = 'down' THEN 1 ELSE 0 END) as down_count,
+                    SUM(CASE WHEN feedback IS NULL THEN 1 ELSE 0 END) as null_count
+                FROM searches
+            """)
+            overall_row = cursor.fetchone()
+            total = overall_row['total'] or 0
+            up_count = overall_row['up_count'] or 0
+            down_count = overall_row['down_count'] or 0
+            pct_positive = 0.0 if down_count + up_count == 0 else (100.0 * up_count) / (down_count + up_count)
+
+            # Failures by path
+            cursor.execute("""
+                SELECT path,
+                       SUM(CASE WHEN feedback = 'up' THEN 1 ELSE 0 END) as up_count,
+                       SUM(CASE WHEN feedback = 'down' THEN 1 ELSE 0 END) as down_count,
+                       COUNT(*) as total
+                FROM searches
+                WHERE feedback IS NOT NULL
+                GROUP BY path
+                ORDER BY down_count DESC
+            """)
+            by_path = [dict(row) for row in cursor.fetchall()]
+
+            # Judge score distribution for negatives
+            cursor.execute("""
+                SELECT judge_score, COUNT(*) as count
+                FROM searches
+                WHERE feedback = 'down' AND judge_score IS NOT NULL
+                GROUP BY judge_score
+                ORDER BY judge_score DESC
+            """)
+            judge_scores = [dict(row) for row in cursor.fetchall()]
+
+            # Recent 20 feedback (both up and down, combined)
+            cursor.execute("""
+                SELECT id, timestamp, query, path, judge_score, final_output, feedback
+                FROM searches
+                WHERE feedback IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 20
+            """)
+            recent = []
+            for row in cursor.fetchall():
+                output_preview = row['final_output'][:100] if row['final_output'] else ""
+                recent.append({
+                    "id": row['id'],
+                    "timestamp": row['timestamp'],
+                    "query": row['query'],
+                    "path": row['path'],
+                    "judge_score": row['judge_score'],
+                    "output_preview": output_preview,
+                    "feedback": row['feedback']
+                })
+
+            return jsonify({
+                "overall": {
+                    "total": total,
+                    "up": up_count,
+                    "down": down_count,
+                    "null": overall_row['null_count'] or 0,
+                    "pct_positive": round(pct_positive, 1)
+                },
+                "by_path": by_path,
+                "judge_scores_on_negatives": judge_scores,
+                "recent_negatives": recent
+            }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+    """
+    Serve the feedback dashboard page.
+    """
+    return render_template("dashboard.html")
 
 
 def _classify_path(state):
