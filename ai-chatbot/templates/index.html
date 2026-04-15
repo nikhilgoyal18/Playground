@@ -520,16 +520,34 @@
 
             // Add sources and log footer if assistant message with metadata
             if (!isUser && metadata) {
-                if (metadata.sources && metadata.sources.length > 0) {
+                const hasSources = metadata.sources && metadata.sources.length > 0;
+                const hasWebSources = metadata.web_sources && metadata.web_sources.length > 0;
+                if (hasSources || hasWebSources) {
                     const sourcesList = document.createElement("div");
                     sourcesList.className = "sources-list";
 
-                    metadata.sources.forEach((source, idx) => {
+                    // Internal digest sources
+                    (metadata.sources || []).forEach((source, idx) => {
                         const sourceDiv = document.createElement("div");
                         sourceDiv.className = "source";
                         sourceDiv.innerHTML = `
                             <div class="source-title">[${idx + 1}] ${source.title || "Untitled"}</div>
                             <div class="source-meta">${source.source_type?.toUpperCase() || "UNKNOWN"} | ${source.date || "N/A"} | ${source.author || "Unknown"}</div>
+                        `;
+                        sourcesList.appendChild(sourceDiv);
+                    });
+
+                    // Web sources (from live web search)
+                    (metadata.web_sources || []).forEach((source, idx) => {
+                        const sourceDiv = document.createElement("div");
+                        sourceDiv.className = "source";
+                        const urlHtml = source.url
+                            ? `<a href="${source.url}" target="_blank" rel="noopener" style="color:#2563eb;text-decoration:none;">${source.url}</a>`
+                            : "";
+                        const dateHtml = source.date ? ` | ${source.date}` : "";
+                        sourceDiv.innerHTML = `
+                            <div class="source-title">[Source ${idx + 1}] WEB | ${source.title || "Untitled"}</div>
+                            <div class="source-meta">${urlHtml}${dateHtml}</div>
                         `;
                         sourcesList.appendChild(sourceDiv);
                     });
@@ -751,9 +769,11 @@
                 if (!response.ok) {
                     addMessage(`Error: ${data.error || "Unknown error"}`, false);
                 } else {
-                    addMessage(data.answer || "No answer generated", false, {
+                    const answerText = data.answer || "Sorry, I couldn't generate an answer. Please try rephrasing your question.";
+                    addMessage(answerText, false, {
                         id: data.id,
                         sources: data.sources || [],
+                        web_sources: data.web_sources || [],
                         path: data.path,
                         tokens_in: data.tokens_in,
                         tokens_out: data.tokens_out,
@@ -761,10 +781,11 @@
                         judge_score: data.judge_score,
                         web_result_count: data.web_result_count
                     });
-                    appendToHistory(query, data.answer || "");
-                    appendToMessages(query, data.answer || "", {
+                    appendToHistory(query, answerText);
+                    appendToMessages(query, answerText, {
                         id: data.id,
                         sources: data.sources || [],
+                        web_sources: data.web_sources || [],
                         path: data.path,
                         tokens_in: data.tokens_in,
                         tokens_out: data.tokens_out,

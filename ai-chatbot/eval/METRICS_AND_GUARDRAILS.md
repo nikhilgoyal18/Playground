@@ -29,12 +29,12 @@ Metrics used to measure whether the chatbot is doing its job well.
 **What it measures:** Whether each query takes the correct execution path.
 
 **Paths:**
-| Path | Trigger | Expected Use |
-|------|---------|-------------|
-| `llm_only` | GENERAL intent (textbook ML/CS concept) | Fast parametric answer, no retrieval |
-| `internal` | PERSONAL intent, chunks pass threshold + judge ≥5 | Digest-grounded answer with citations |
-| `web_fallback` | Internal fails: no chunks, judge <5, or no-content response | Live web when digest has no answer |
-| `explicit_web` | Query contains real-time keywords | Direct web for news/prices/live data |
+| Path | Trigger | Node | Expected Use |
+|------|---------|------|-------------|
+| `llm_only` | GENERAL intent (textbook ML/CS concept) | `generate_llm_answer` | Fast local LLM answer, zero retrieval — uses `LLM_ONLY_SYSTEM_PROMPT` with conversation history injected |
+| `internal` | PERSONAL intent, chunks pass threshold + judge ≥5 | `generate_answer` | Digest-grounded answer with `[Source N]` citations |
+| `web_fallback` | Internal fails: no chunks, judge <5, or no-content response | `generate_web_answer` | Live web when digest has no answer |
+| `explicit_web` | Query contains real-time keyword (see 2.3) | `generate_web_answer` | Direct web for news/prices/live data; uses `DDGS().news()` if news keywords detected |
 
 **Implementation:** `eval/run_eval.py → classify_path()`, compared against `expected_path` per test case
 **Current baseline:** ~76-80% pass rate (71 tests)
@@ -61,8 +61,11 @@ python3 eval/run_eval.py
 
 **What it measures:** LLM judge's assessment of retrieved chunk relevance (0-10). Gates the internal path.
 
+**Scope:** The judge only runs on PERSONAL-intent queries that have reached `internal_retrieve`. Queries classified as GENERAL exit via `llm_only` before retrieval starts — the judge is never called for them.
+
 | Score Range | Interpretation | Action |
 |------------|----------------|--------|
+| N/A | Query classified GENERAL by intent pre-classifier | `llm_only` path — judge never called |
 | 8-10 | Excellent match, distance < 0.5 | Use internal answer |
 | 6-7 | Good match, core topic covered | Use internal answer |
 | 5 | Marginal match — passes threshold | Use internal answer |
@@ -71,6 +74,15 @@ python3 eval/run_eval.py
 **Threshold:** `JUDGE_SCORE_THRESHOLD = 5` (in `graph.py`)
 **Current baseline:** Avg 7.7/10 on internal queries, avg 1.5/10 on correctly-rejected queries
 **Target:** Avg ≥7.0 on accepted queries; zero high-confidence wrong answers
+
+**Active prompt rules in `JUDGE_PROMPT`:**
+| Rule | Behaviour |
+|------|-----------|
+| Distance-adjusted scoring | Distance > 0.65 → likely off-topic → score ≤4 |
+| Temporal validation | Future events (post-April 2026) → score 0, route to web |
+| Compound query matching | Query with person + topic (e.g. "what does Chamath say about scaling") requires BOTH to appear in chunks — partial match → score ≤4. Fixed id 33. |
+| Lenient matching | 60%+ of query intent covered by chunks → score ≥5 |
+| Semantic equivalence | "1:1 meeting" ≈ "meeting topics" counts as a match |
 
 **Logged to:** `data/search_logs.db → judge_score, judge_quality, judge_reasoning`
 
@@ -112,6 +124,8 @@ GROUP BY path;
 **Implementation:** `has_answer` check in `run_eval.py`; `final_output IS NOT NULL` in SQLite
 **Target:** 100% (no silent empty responses)
 
+**Guardrail (2026-04-15):** When web search returns a no-content response (LLM says results insufficient), `final_output` is now set to a friendly disclaimer message rather than `None`. Previously users saw a blank response with no indication of failure.
+
 ---
 
 ### 1.6 Token Usage — ✅ Done
@@ -126,7 +140,7 @@ GROUP BY path;
 
 ### 1.7 Eval Test Suite — ✅ Done
 
-**What it measures:** Regression safety across 71 defined test cases.
+**What it measures:** Regression safety across 82 defined test cases.
 
 | Category | Count | Description |
 |----------|-------|-------------|
@@ -135,10 +149,31 @@ GROUP BY path;
 | Web search | 25 | Queries with no indexed content (expect web fallback) |
 | Classifier (GENERAL) | 6 | Queries that should route to `llm_only` |
 | Additional | 4 | Edge cases and ambiguous queries |
+| Regression | 5 | Lock in specific production bug fixes (ids 30, 33, 43-47) |
+| Personal boundary | 2 | Named entities/systems that should route to `internal` not `llm_only` |
 
 **Files:** `eval/test_cases.py` (test definitions), `eval/run_eval.py` (harness)
-**Current pass rate (2026-04-06 baseline):** ~76-80% (48-50/61 passing)
+**Current pass rate (2026-04-06 baseline):** ~76-80%
 **Target:** ≥95%
+
+**Regression tests (added 2026-04-15):** Lock in 5 production bugs that were fixed — if any regress, status shows `REGR` in the eval table. Each uses `assert_*` fields for specific behavioral checks beyond routing:
+| Test ID | Bug it locks | Assert |
+|---------|-------------|--------|
+| `regression_explicit_web_news_has_answer` | ids 43-46: blank answer on news query | `assert_has_answer` |
+| `regression_web_sources_returned` | id 47: web_sources never stored | `assert_web_sources` |
+| `regression_no_silent_blank` | any web no-content → blank | `assert_has_answer` |
+| `regression_compound_query_judge` | id 33: compound query false internal hit | routing check |
+| `regression_hallucination_risk_flagged` | id 30: fabricated entity not flagged | `assert_hallucination_risk` |
+
+**DB logging (added 2026-04-15):** Each full eval run can be persisted to `eval_runs` table with `--save` flag:
+```bash
+python3 eval/run_eval.py --save      # Run all 82 tests and save to DB
+python3 eval/run_eval.py --id regression_explicit_web_news_has_answer  # Run one regression test
+```
+Query eval history:
+```sql
+SELECT id, timestamp, total, passed, pass_rate, avg_latency_ms FROM eval_runs ORDER BY id DESC;
+```
 
 **Baseline Metrics (2026-04-06):**
 
@@ -300,29 +335,42 @@ Active and planned controls that prevent bad outputs, bad routing, and system ab
 **What it does:** Even if chunks pass the distance threshold, an LLM judge (temperature=0) scores semantic relevance 0-10. Below threshold → web fallback.
 
 **Implementation:** `JUDGE_SCORE_THRESHOLD = 5` in `graph.py`; `judge_gate` node with `RetryPolicy(max_attempts=3)`
-**Prompt rules:** Temporal validation (future events → score 0), specific term matching, distance-adjusted scoring, LENIENT matching (60%+ coverage → score ≥5)
+**Prompt rules:** Temporal validation (score 0 for future events), distance-adjusted scoring (>0.65 → score ≤4), compound query matching (person + topic both required), lenient matching (60%+ coverage → score ≥5), semantic equivalence
 **Logged to:** `judge_score`, `judge_quality`, `judge_reasoning`, `judge_parse_error` in SQLite
 
 ---
 
 ### 2.3 Explicit Web Keyword Bypass — ✅ Done
 
-**What it does:** Queries containing real-time signal words skip internal search entirely and go straight to web.
+**What it does:** Queries containing real-time signal words skip internal search entirely and go straight to web. Within web search, a secondary check routes news queries to `DDGS().news()` for richer article content.
 
 **Implementation:** `detect_explicit_web()` in `graph.py` using word-boundary regex `\b(keyword)\b`
 **Current keywords (20):** `latest, last week, last month, last year, yesterday, today, this week, this month, breaking, news, current, stock, price, right now, live, recently, just announced, new release, trending`
 **Note:** "live" and "current" are ambiguous — see Pending item 2.11
 
+**News search sub-routing (added 2026-04-15):** Within `generate_web_answer`, if the original or enriched query contains any of `{news, breaking, latest, today, yesterday, this week, headline}`, the search uses `DDGS().news()` instead of `DDGS().text()`. This returns actual article content rather than thin snippet bodies.
+
+**Recency enforcement (added 2026-04-15):** `DDGS().text()` now uses `timelimit="m"` (last month) by default. Falls back to no time limit if no results found. Fixes the 2023 stale results bug (id 47).
+
+**Web sources tracking (added 2026-04-15):** `web_search()` now returns a 6th value — a `sources` list of `{title, url, date}` per result. Stored in graph state as `web_sources`, returned in API response, and rendered as clickable links in the UI.
+
 ---
 
-### 2.4 Intent Pre-Classifier — ✅ Done
+### 2.4 Intent Pre-Classifier + llm_only Answer Node — ✅ Done
 
-**What it does:** Before retrieval, classifies query as GENERAL (pure textbook ML/CS concept) or PERSONAL (everything else). GENERAL queries bypass the entire RAG pipeline.
+**What it does:** Two-stage pipeline for GENERAL queries:
 
-**Implementation:** `classify_intent()` node in `graph.py`; `INTENT_CLASSIFIER_PROMPT` with 6 ordered rules; temperature=0
-**Accuracy:** 100% on 77 validation test cases
-**Hit rate:** ~5.2% (intentionally conservative)
-**Fallback:** If `llm_only` node fails (Ollama error), falls back to `internal_retrieve`
+**Stage 1 — `classify_intent` node:** Classifies query as GENERAL (pure textbook ML/CS concept) or PERSONAL (everything else). Uses `INTENT_CLASSIFIER_PROMPT` with 6 ordered rules at temperature=0.
+- GENERAL examples: "What is gradient descent?", "How does attention work?"
+- PERSONAL examples: anything with named products, people, companies, or digest-covered topics
+
+**Stage 2 — `generate_llm_answer` node:** If classified GENERAL, answers directly from local LLM (`llama3.2`) parametric knowledge — no ChromaDB retrieval, no web search, no judge. Injects conversation history for multi-turn coherence. Uses `LLM_ONLY_SYSTEM_PROMPT` which explicitly forbids referencing digest context.
+
+**Implementation:** `classify_intent()` → `generate_llm_answer()` in `graph.py`
+**Accuracy:** 100% on 77 validation test cases (6 in eval suite)
+**Hit rate:** ~5.2% (intentionally conservative — minimize hallucination risk)
+**Fallback:** If `generate_llm_answer` fails (Ollama error), falls back to `internal_retrieve`
+**Logged as:** `llm_only_used = 1`, `intent_class = "GENERAL"` in SQLite
 
 ---
 
@@ -535,7 +583,7 @@ score = int(state.get("judge_score") or 0)
 | 1.4 | Latency by path | ✅ Done (logged) | llm_only ≤800ms, internal ≤4s |
 | 1.5 | Answer presence | ✅ Done | 100% |
 | 1.6 | Token usage | ✅ Done (logged) | No budget target yet |
-| 1.7 | Eval test suite (71 cases) | ✅ Done | ≥95% pass rate |
+| 1.7 | Eval test suite (82 cases) | ✅ Done | ≥95% pass rate |
 | 1.8 | Path distribution dashboard | 🔲 Pending | — |
 | 1.9 | User feedback signal (thumbs) | ✅ Done | ≥80% positive |
 | 1.10 | llm_only hit rate tracking | 🔲 Pending | 5-15% target range |
@@ -548,7 +596,7 @@ score = int(state.get("judge_score") or 0)
 | 2.1 | Retrieval distance threshold | ✅ Done | ≤0.8 to pass |
 | 2.2 | LLM judge gate | ✅ Done | Score ≥5 to use internal |
 | 2.3 | Explicit web keyword bypass | ✅ Done | 20 keywords, word-boundary |
-| 2.4 | Intent pre-classifier | ✅ Done | Conservative GENERAL definition |
+| 2.4 | Intent pre-classifier + llm_only node | ✅ Done | Conservative GENERAL definition; local LLM answers textbook concepts |
 | 2.5 | Conversation history cap | ✅ Done | Last 6 entries (3 exchanges) |
 | 2.6 | Per-node retry policy | ✅ Done | Judge 3x, web 3x, generate 2x |
 | 2.7 | Input validation | ✅ Done | API boundary, 400 on bad input |

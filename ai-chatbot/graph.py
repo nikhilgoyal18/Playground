@@ -30,6 +30,8 @@ EXPLICIT_WEB_KEYWORDS = {
     "right now", "live", "recently", "just announced", "new release", "trending",
 }
 
+NEWS_KEYWORDS = {"news", "breaking", "latest", "today", "yesterday", "this week", "headline"}
+
 JUDGE_PROMPT = """You are a retrieval quality judge. Score whether retrieved chunks match the user's intent (0-10).
 
 CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown.
@@ -179,6 +181,7 @@ class SearchState(TypedDict):
     web_succeeded: bool
     web_was_fallback: bool
     web_no_content_response: bool
+    web_sources: List[dict]
     hallucination_risk: bool
 
     # Audit
@@ -535,29 +538,33 @@ def generate_web_answer(state: SearchState) -> dict:
     """Generate answer from web search."""
     conv_history = state.get("conversation_history") or []
     search_query = _enrich_web_query(state["normalized_query"], conv_history) if conv_history else state["normalized_query"]
+
+    # Use news search if either the original or enriched query contains news keywords
+    combined_query_lower = (state["normalized_query"] + " " + search_query).lower()
+    use_news = any(kw in combined_query_lower for kw in NEWS_KEYWORDS)
+
     result = web_search(
         search_query,
         max_results=5,
         conversation_history=conv_history,
+        use_news_search=use_news,
     )
 
-    # web_search returns (answer, result_count, tokens_in, tokens_out, grounded)
-    grounded = True  # default: assume grounded
-    if isinstance(result, tuple) and len(result) == 5:
+    # web_search returns (answer, result_count, tokens_in, tokens_out, grounded, sources)
+    grounded = True
+    web_srcs = []
+    if isinstance(result, tuple) and len(result) == 6:
+        answer, result_count, tokens_in, tokens_out, grounded, web_srcs = result
+    elif isinstance(result, tuple) and len(result) == 5:
         answer, result_count, tokens_in, tokens_out, grounded = result
     elif isinstance(result, tuple) and len(result) == 4:
         answer, result_count, tokens_in, tokens_out = result
-        grounded = True
     elif isinstance(result, tuple) and len(result) == 2:
-        # Backward compatibility with old 2-tuple format
         answer, result_count = result
         tokens_in, tokens_out = 0, 0
-        grounded = True
     else:
-        # Fallback for other return types
         answer = result
         result_count = tokens_in = tokens_out = 0
-        grounded = True
 
     # Detect non-answer phrases (when web search returns the prescribed "no content" response)
     WEB_NO_CONTENT_PHRASES = [
@@ -583,8 +590,14 @@ def generate_web_answer(state: SearchState) -> dict:
     # web_was_fallback = True if we got here because internal failed, not explicit web
     was_fallback = not state.get("explicit_web_detected", False)
 
-    # Don't return non-answer text as final output — it's not a real answer
-    final_output = None if web_no_content else (answer or None)
+    # When web search can't synthesize an answer, return a friendly message instead of blank
+    if web_no_content:
+        final_output = (
+            "I wasn't able to find enough information in the web results to answer this. "
+            "Try rephrasing your question or adding more context."
+        )
+    else:
+        final_output = answer or None
 
     return {
         "web_answer": answer or None,
@@ -592,6 +605,7 @@ def generate_web_answer(state: SearchState) -> dict:
         "web_no_content_response": web_no_content,
         "web_result_count": result_count,
         "web_was_fallback": was_fallback,
+        "web_sources": web_srcs,
         "hallucination_risk": hallucination_risk,
         "final_output": final_output,
         "total_llm_tokens_in": tokens_in,

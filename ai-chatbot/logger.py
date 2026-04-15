@@ -8,6 +8,18 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "data" / "search_logs.db"
 
+CREATE_EVAL_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS eval_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp       TEXT NOT NULL,
+    total           INTEGER NOT NULL,
+    passed          INTEGER NOT NULL,
+    pass_rate       REAL NOT NULL,
+    avg_latency_ms  INTEGER,
+    results_json    TEXT NOT NULL
+)
+"""
+
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS searches (
     id                          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,6 +97,7 @@ def init_db():
         # Enable WAL mode to prevent locking issues with concurrent access
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(CREATE_TABLE_SQL)
+        conn.execute(CREATE_EVAL_TABLE_SQL)
         # Migrate existing DBs: add conversation_id column if missing
         try:
             conn.execute("ALTER TABLE searches ADD COLUMN conversation_id TEXT")
@@ -190,6 +203,46 @@ def _truncate(text, max_len):
     if text is None:
         return None
     return text[:max_len] if len(text) > max_len else text
+
+
+def save_eval_run(results: list, passed: int) -> int:
+    """
+    Persist a completed eval run to the eval_runs table.
+
+    Args:
+        results: List of per-test result dicts from run_eval.py
+        passed:  Number of tests that passed
+
+    Returns:
+        int: The inserted row ID
+    """
+    import json as _json
+    from datetime import datetime, timezone
+    total = len(results)
+    avg_latency = int(sum(r.get("duration_ms") or 0 for r in results) / total) if total else 0
+    pass_rate = round(100 * passed / total, 1) if total else 0.0
+
+    # Strip large debug keys before storing
+    slim = [
+        {k: v for k, v in r.items() if k != "final_state_keys"}
+        for r in results
+    ]
+
+    with sqlite3.connect(DB_PATH, timeout=10) as conn:
+        cursor = conn.execute(
+            """INSERT INTO eval_runs (timestamp, total, passed, pass_rate, avg_latency_ms, results_json)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                datetime.now(timezone.utc).isoformat(),
+                total,
+                passed,
+                pass_rate,
+                avg_latency,
+                _json.dumps(slim),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
 
 
 def update_feedback(search_id: int, feedback: str) -> bool:

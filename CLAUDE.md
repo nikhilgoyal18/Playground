@@ -17,6 +17,11 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 - **Project state** (tracking files, caches) lives in `<project>/data/`
 - **Outputs** (summaries, reports) live in `<project>/summaries/` or `<project>/outputs/`
 - Never commit `credentials.json`, `token.json`, or `.env` files
+- **Documentation MD files** (CLAUDE.md, REFERENCE.md, BUGS.md, METRICS_AND_GUARDRAILS.md, and any other hand-authored docs — not auto-generated digests or summaries) must include the following comment at the very top of the file:
+  ```
+  <!-- Created: YYYY-MM-DD | Updated: YYYY-MM-DD -->
+  ```
+  Update the `Updated` date whenever the file is meaningfully changed.
 
 ## Auto-invoke Skills
 

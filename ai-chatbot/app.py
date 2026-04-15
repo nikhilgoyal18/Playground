@@ -119,6 +119,7 @@ def search():
         "web_succeeded": False,
         "web_was_fallback": False,
         "web_no_content_response": False,
+        "web_sources": [],
         "hallucination_risk": False,
         "final_output": None,
         "errors": [],
@@ -147,7 +148,7 @@ def search():
     if error_msg:
         return jsonify({"error": f"Search failed: {error_msg}"}), 500
 
-    # Deduplicate sources by (source_type, date, author, title)
+    # Deduplicate internal sources by (source_type, date, author, title)
     unique_sources = {}
     for meta in final_state.get("metas", []):
         key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
@@ -155,6 +156,9 @@ def search():
             unique_sources[key] = meta
 
     sources = list(unique_sources.values())
+
+    # Attach web sources so the UI can display titles + URLs
+    web_sources = final_state.get("web_sources", [])
 
     # Compute path for logging and response
     path = _classify_path(final_state)
@@ -209,8 +213,9 @@ def search():
     # Build response (after logging to include the ID)
     response = {
         "id": search_id,  # Database row ID for lookup
-        "answer": final_state.get("final_output") or "",
+        "answer": final_state.get("final_output") or "Sorry, I couldn't generate an answer. Please try rephrasing your question.",
         "sources": sources,
+        "web_sources": web_sources,
         "tokens_in": final_state.get("total_llm_tokens_in", 0),
         "tokens_out": final_state.get("total_llm_tokens_out", 0),
         "duration_ms": duration_ms,

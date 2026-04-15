@@ -639,4 +639,52 @@ TEST_CASES = [
         "min_judge_score": 4,
         "notes": "RAG is a named system/architecture; classifier should treat as PERSONAL not GENERAL",
     },
+
+    # ============ REGRESSION TESTS (bugs fixed in production)
+    # These lock in fixes so they cannot silently break again.
+    {
+        "id": "regression_explicit_web_news_has_answer",
+        "query": "tell me about US Iran news",
+        "expected_path": "explicit_web",
+        "expected_sources": [],
+        "min_judge_score": 0,
+        "notes": "Regression: id 43-46 returned blank answer. 'news' triggers explicit_web; must return a non-empty final_output.",
+        "assert_has_answer": True,
+    },
+    {
+        "id": "regression_web_sources_returned",
+        "query": "latest developments in US China trade war",
+        "expected_path": "explicit_web",
+        "expected_sources": [],
+        "min_judge_score": 0,
+        "notes": "Regression: id 47 showed [Source N] citations but web_sources were never stored. Web search must return non-empty web_sources.",
+        "assert_web_sources": True,
+    },
+    {
+        "id": "regression_no_silent_blank",
+        "query": "breaking news about global economy today",
+        "expected_path": "explicit_web",
+        "expected_sources": [],
+        "min_judge_score": 0,
+        "notes": "Regression: when web yields no content, user must get a friendly message — not a blank response.",
+        "assert_has_answer": True,
+    },
+    {
+        "id": "regression_compound_query_judge",
+        "query": "what does Chamath say about scaling orgs",
+        "expected_path": "web_fallback",
+        "expected_sources": [],
+        "min_judge_score": 0,
+        "notes": "Regression: id 33 — compound query (person + topic) was incorrectly scored 8/10 by judge even when chunks only had person OR topic. Should NOT internal-succeed unless both match.",
+    },
+    {
+        "id": "regression_hallucination_risk_flagged",
+        "query": "Claude Mythos model sandbox escape",
+        "expected_path": "explicit_web",
+        "expected_sources": [],
+        "min_judge_score": 0,
+        "notes": "Regression: id 30 — fabricated entity in query should trigger hallucination_risk=True since proper nouns won't appear in web results.",
+        "assert_hallucination_risk": True,
+    },
+]
 ]
