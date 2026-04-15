@@ -1,0 +1,16 @@
+# Credentials & secrets (never commit these)
+**/.env
+**/token.json
+**/credentials.json
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Local Claude settings (contains absolute paths tied to this machine)
+.claude/settings.local.json
+
+# Runtime logs (contain full filesystem paths and git push URLs)
+scripts/logs/
+
+# macOS
+.DS_Store

@@ -210,6 +210,19 @@ async def fetch_new_tweets(auth_token: str, ct0: str, scanned_ids: set) -> list[
     if response.status_code == 403:
         print("ERROR: Forbidden (403). Check that ct0 matches your auth_token session.", file=sys.stderr)
         sys.exit(1)
+    if response.status_code == 429:
+        reset_ts = response.headers.get("x-rate-limit-reset")
+        remaining = response.headers.get("x-rate-limit-remaining", "?")
+        if reset_ts:
+            reset_dt = datetime.fromtimestamp(int(reset_ts), tz=timezone.utc)
+            print(
+                f"ERROR: Rate limited (429). Remaining: {remaining}. "
+                f"Reset at {reset_dt.strftime('%H:%M:%S UTC')}. Try again after that.",
+                file=sys.stderr,
+            )
+        else:
+            print("ERROR: Rate limited (429). Try again in a few minutes.", file=sys.stderr)
+        sys.exit(2)  # exit code 2 = rate limit (distinct from auth failure)
     if response.status_code != 200:
         print(f"ERROR: Unexpected status {response.status_code}: {response.text[:200]}", file=sys.stderr)
         sys.exit(1)

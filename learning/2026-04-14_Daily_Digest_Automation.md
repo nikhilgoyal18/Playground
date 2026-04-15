@@ -24,9 +24,9 @@ The result: every day at 2 PM, two new files appear in the repo with no human in
 
 | File | Purpose |
 |------|---------|
-| `/Users/nikhil/Documents/AI/Playground/scripts/daily_digest.sh` | Main shell script — orchestrates fetch, generate, validate, commit |
-| `/Users/nikhil/Library/LaunchAgents/com.nikhil.daily-digest.plist` | macOS LaunchAgent — schedules the job at 14:00 daily |
-| `/Users/nikhil/Library/Scripts/daily-digest-launcher.sh` | Intermediate launcher script — created during debugging, ultimately unused |
+| `<repo-root>/scripts/daily_digest.sh` | Main shell script — orchestrates fetch, generate, validate, commit |
+| `$HOME/Library/LaunchAgents/com.<username>.daily-digest.plist` | macOS LaunchAgent — schedules the job at 14:00 daily |
+| `$HOME/Library/Scripts/daily-digest-launcher.sh` | Intermediate launcher script — created during debugging, ultimately unused |
 
 ---
 
@@ -40,14 +40,14 @@ The initial plist called `/bin/bash` directly:
 <key>ProgramArguments</key>
 <array>
     <string>/bin/bash</string>
-    <string>/Users/nikhil/Documents/AI/Playground/scripts/daily_digest.sh</string>
+    <string><repo-root>/scripts/daily_digest.sh</string>
 </array>
 ```
 
 ### What Failed
 
 ```
-/bin/bash: /Users/nikhil/Documents/AI/Playground/scripts/daily_digest.sh: Operation not permitted
+/bin/bash: <repo-root>/scripts/daily_digest.sh: Operation not permitted
 ```
 
 Exit code `126` appeared in `launchctl list` — permission denied, not a script error.
@@ -86,7 +86,7 @@ Changed `ProgramArguments` in the plist to call `osascript` with an inline Apple
 <array>
     <string>/usr/bin/osascript</string>
     <string>-e</string>
-    <string>do shell script "/bin/bash /Users/nikhil/Documents/AI/Playground/scripts/daily_digest.sh >> /Users/nikhil/Library/Logs/daily-digest-cron.log 2>&1"</string>
+    <string>do shell script "/bin/bash <repo-root>/scripts/daily_digest.sh >> $HOME/Library/Logs/daily-digest-cron.log 2>&1"</string>
 </array>
 ```
 
@@ -240,12 +240,12 @@ launchd starts with a minimal PATH that does not include Homebrew, Python framew
 <key>EnvironmentVariables</key>
 <dict>
     <key>PATH</key>
-    <string>/Users/nikhil/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>$HOME/.local/bin:/Library/Frameworks/Python.framework/Versions/3.14/bin:/usr/local/bin:/usr/bin:/bin</string>
 </dict>
 ```
 
 Key entries:
-- `/Users/nikhil/.local/bin` — where `claude` CLI is installed
+- `$HOME/.local/bin` — where `claude` CLI is installed
 - `/Library/Frameworks/Python.framework/Versions/3.14/bin` — `python3` and `python3.14` for the fetch scripts
 - Standard paths for `git`, `bash`, `osascript`
 
@@ -340,9 +340,9 @@ This resets the "what has been processed" pointer so the pipeline re-fetches and
 
 ```
 PID  Status  Label
--    0       com.nikhil.daily-digest    # not currently running; last exit was 0 (success)
--    126     com.nikhil.daily-digest    # not running; last exit was 126 (TCC block or not executable)
-1234 -       com.nikhil.daily-digest    # currently running, PID 1234
+-    0       com.<username>.daily-digest    # not currently running; last exit was 0 (success)
+-    126     com.<username>.daily-digest    # not running; last exit was 126 (TCC block or not executable)
+1234 -       com.<username>.daily-digest    # currently running, PID 1234
 ```
 
 Exit code `126` specifically means the process was blocked from executing — either TCC denied access or the script file is not executable. Not a script logic error.

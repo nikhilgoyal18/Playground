@@ -10,7 +10,7 @@ Run the automated evaluation harness to measure RAG answer quality, routing corr
 ## Quick Start
 
 ```bash
-cd /Users/nikhil/Documents/AI/Playground/ai-chatbot
+cd ai-chatbot
 python3 eval/run_eval.py
 ```
 

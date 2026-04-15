@@ -18,7 +18,7 @@ Semantic search and Q&A across all indexed digests using RAG.
 
 1. Change into the `ai-chatbot/` directory:
    ```bash
-   cd /Users/nikhil/Documents/AI/Playground/ai-chatbot
+   cd ai-chatbot
    ```
 
 2. Extract a clean, focused search query from the user's message. If their question is

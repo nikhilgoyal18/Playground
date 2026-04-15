@@ -21,7 +21,7 @@ Generate interview-level questions from recent project experience and append the
 Read `learning/questions_and_answers.md` to find the highest question number already in the file.
 
 ```bash
-head -50 /Users/nikhil/Documents/AI/Playground/learning/questions_and_answers.md
+head -50 learning/questions_and_answers.md
 ```
 
 If the file contains Q3, the next question is Q4. If it contains Q1, the next is Q2.
@@ -30,7 +30,7 @@ If the file contains Q3, the next question is Q4. If it contains Q1, the next is
 
 Run:
 ```bash
-git -C /Users/nikhil/Documents/AI/Playground log --oneline -15
+git log --oneline -15
 ```
 
 to see recent commits. Use the commit messages and what the user described in their request to identify what was implemented (e.g., "evaluation harness", "chunking strategy", "judge gate", "conversation mode").
