@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS searches (
     judge_reasoning             TEXT,
     judge_parse_error           INTEGER,
 
+    faithfulness_score          INTEGER,
+    faithfulness_grounded_claims INTEGER,
+    faithfulness_total_claims   INTEGER,
+    faithfulness_ungrounded     TEXT,
+    faithfulness_judge_skipped  INTEGER DEFAULT 0,
+
     internal_answer_generated   INTEGER,
     internal_no_content_response INTEGER,
     internal_succeeded          INTEGER NOT NULL DEFAULT 0,
@@ -72,6 +78,8 @@ INSERT INTO searches (
     internal_attempted, top_chunk_distance, chunks_passed_threshold,
     judge_attempted, judge_score, judge_quality, judge_intent_understood,
     judge_reasoning, judge_parse_error,
+    faithfulness_score, faithfulness_grounded_claims, faithfulness_total_claims,
+    faithfulness_ungrounded, faithfulness_judge_skipped,
     internal_answer_generated, internal_no_content_response, internal_succeeded,
     web_attempted, web_was_fallback, web_result_count, web_succeeded, web_no_content_response, hallucination_risk, path,
     final_output, error, total_llm_tokens_in, total_llm_tokens_out,
@@ -82,6 +90,8 @@ INSERT INTO searches (
     :internal_attempted, :top_chunk_distance, :chunks_passed_threshold,
     :judge_attempted, :judge_score, :judge_quality, :judge_intent_understood,
     :judge_reasoning, :judge_parse_error,
+    :faithfulness_score, :faithfulness_grounded_claims, :faithfulness_total_claims,
+    :faithfulness_ungrounded, :faithfulness_judge_skipped,
     :internal_answer_generated, :internal_no_content_response, :internal_succeeded,
     :web_attempted, :web_was_fallback, :web_result_count, :web_succeeded, :web_no_content_response, :hallucination_risk, :path,
     :final_output, :error, :total_llm_tokens_in, :total_llm_tokens_out,
@@ -103,6 +113,16 @@ def init_db():
             conn.execute("ALTER TABLE searches ADD COLUMN conversation_id TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
+
+        # Migrate: add faithfulness columns if missing
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_score INTEGER")
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_grounded_claims INTEGER")
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_total_claims INTEGER")
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_ungrounded TEXT")
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_judge_skipped INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Columns already exist
         # Migrate existing DBs: add intent_class column if missing
         try:
             conn.execute("ALTER TABLE searches ADD COLUMN intent_class TEXT")
@@ -162,6 +182,11 @@ def save_log(log: dict):
         "judge_intent_understood": log.get("judge_intent_understood"),
         "judge_reasoning": log.get("judge_reasoning"),
         "judge_parse_error": _opt_int(log.get("judge_parse_error")),
+        "faithfulness_score": log.get("faithfulness_score"),
+        "faithfulness_grounded_claims": log.get("faithfulness_grounded_claims"),
+        "faithfulness_total_claims": log.get("faithfulness_total_claims"),
+        "faithfulness_ungrounded": log.get("faithfulness_ungrounded"),
+        "faithfulness_judge_skipped": _opt_int(log.get("faithfulness_judge_skipped", False)),
         "internal_answer_generated": _opt_int(log.get("internal_answer_generated")),
         "internal_no_content_response": _opt_int(log.get("internal_no_content_response")),
         "internal_succeeded": int(log.get("internal_succeeded", False)),

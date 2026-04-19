@@ -32,6 +32,26 @@ EXPLICIT_WEB_KEYWORDS = {
 
 NEWS_KEYWORDS = {"news", "breaking", "latest", "today", "yesterday", "this week", "headline"}
 
+FAITHFULNESS_PROMPT = """You are a faithfulness evaluator. Check if the generated answer stays grounded in the provided context.
+
+CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown.
+
+Strict template:
+{"faithfulness_score": 8, "grounded_claims": 7, "total_claims": 8, "ungrounded": "claim X mentioned Y, but chunks don't say Y", "recommendation": "proceed"}
+
+Task:
+1. Break the answer into atomic factual claims (e.g., "Claude is made by Anthropic", "RAG uses retrieval")
+2. For each claim, check if it is EXPLICITLY stated or directly supported by the context chunks
+3. Count: grounded_claims / total_claims → faithfulness_score (0-10, rounded)
+4. List any ungrounded claims in the "ungrounded" field
+
+Scoring:
+- 9-10: All claims grounded, comprehensive coverage, no hallucinations
+- 7-8: Most claims grounded (90%+), minor inference acceptable
+- 5-6: Some claims grounded but gaps exist (70-89% grounded)
+- 3-4: Majority of claims not grounded (< 70% grounded)
+- 0-2: Almost entirely fabricated, contradicts chunks"""
+
 JUDGE_PROMPT = """You are a retrieval quality judge. Score whether retrieved chunks match the user's intent (0-10).
 
 CRITICAL: Respond with ONLY valid JSON. No preamble, no explanation, no markdown.
@@ -170,6 +190,13 @@ class SearchState(TypedDict):
     judge_intent_understood: Optional[str]
     judge_reasoning: Optional[str]
     judge_parse_error: bool
+
+    # Faithfulness judge
+    faithfulness_score: Optional[int]
+    faithfulness_grounded_claims: Optional[int]
+    faithfulness_total_claims: Optional[int]
+    faithfulness_ungrounded: Optional[str]
+    faithfulness_judge_skipped: bool
 
     # Answer
     internal_answer: Optional[str]
@@ -441,6 +468,55 @@ def judge_gate(state: SearchState) -> dict:
     }
 
 
+def faithfulness_judge(state: SearchState) -> dict:
+    """Judge whether the generated answer is grounded in retrieved chunks."""
+    if not state.get("internal_answer_generated") or not state.get("internal_answer"):
+        return {"faithfulness_judge_skipped": True}
+
+    answer = state["internal_answer"]
+    chunks_text = "\n\n---\n\n".join([
+        f"[Chunk {i+1}] {doc}" for i, doc in enumerate(state.get("docs", []))
+    ])
+
+    user_msg = f"Generated answer:\n{answer}\n\n---\n\nContext chunks:\n{chunks_text}"
+
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": FAITHFULNESS_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            options={"temperature": 0},
+        )
+        raw = response.message.content.strip()
+
+        if "```" in raw:
+            parts = raw.split("```")
+            if len(parts) >= 2:
+                raw = parts[1].lstrip("json").strip()
+
+        verdict = json.loads(raw)
+        tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
+        tokens_out = getattr(response, 'eval_count', 0) or 0
+
+        return {
+            "faithfulness_score": int(verdict.get("faithfulness_score", 0)),
+            "faithfulness_grounded_claims": int(verdict.get("grounded_claims", 0)),
+            "faithfulness_total_claims": int(verdict.get("total_claims", 0)),
+            "faithfulness_ungrounded": verdict.get("ungrounded"),
+            "faithfulness_judge_skipped": False,
+            "total_llm_tokens_in": tokens_in,
+            "total_llm_tokens_out": tokens_out,
+        }
+    except Exception as e:
+        return {
+            "faithfulness_score": 0,
+            "faithfulness_judge_skipped": True,
+            "errors": [f"faithfulness_judge error: {str(e)}"],
+        }
+
+
 def generate_answer(state: SearchState) -> dict:
     """Generate answer from internal chunks."""
     # Build context blocks
@@ -591,9 +667,9 @@ def generate_web_answer(state: SearchState) -> dict:
     was_fallback = not state.get("explicit_web_detected", False)
 
     # When web search can't synthesize an answer, return a friendly message instead of blank
-    if web_no_content:
+    if web_no_content or hallucination_risk:
         final_output = (
-            "I wasn't able to find enough information in the web results to answer this. "
+            "I wasn't able to find reliable information in the web results to answer this. "
             "Try rephrasing your question or adding more context."
         )
     else:
@@ -632,11 +708,22 @@ def route_after_judge(state: SearchState) -> Literal["web_search", "generate_ans
     return "generate_answer"
 
 
-def route_after_generate(state: SearchState) -> Literal["web_search", Literal[END]]:
+def route_after_faithfulness(state: SearchState) -> Literal["web_search", Literal[END]]:
+    """Route based on faithfulness score."""
+    if state.get("faithfulness_judge_skipped"):
+        # If judge was skipped (error or no answer), proceed to END
+        return END
+    score = int(state.get("faithfulness_score") or 0)
+    if score < 7:  # Threshold: must be grounded enough
+        return "web_search"
+    return END
+
+
+def route_after_generate(state: SearchState) -> Literal["faithfulness_judge", "web_search"]:
     """Route based on whether answer generation succeeded."""
     if state.get("internal_no_content_response"):
         return "web_search"
-    return END
+    return "faithfulness_judge"
 
 
 # ============================================================================
@@ -663,6 +750,11 @@ def build_graph():
         "generate_answer",
         generate_answer,
         retry=RetryPolicy(max_attempts=2)
+    )
+    graph.add_node(
+        "faithfulness_judge",
+        faithfulness_judge,
+        retry=RetryPolicy(max_attempts=3)
     )
     graph.add_node(
         "web_search",
@@ -717,6 +809,14 @@ def build_graph():
     graph.add_conditional_edges(
         "generate_answer",
         route_after_generate,
+        {
+            "faithfulness_judge": "faithfulness_judge",
+            "web_search": "web_search",
+        }
+    )
+    graph.add_conditional_edges(
+        "faithfulness_judge",
+        route_after_faithfulness,
         {
             "web_search": "web_search",
             END: END,

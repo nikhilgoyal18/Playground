@@ -687,4 +687,3 @@ TEST_CASES = [
         "assert_hallucination_risk": True,
     },
 ]
-]
