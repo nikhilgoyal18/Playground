@@ -153,14 +153,8 @@ def search():
     if error_msg:
         return jsonify({"error": f"Search failed: {error_msg}"}), 500
 
-    # Deduplicate internal sources by (source_type, date, author, title)
-    unique_sources = {}
-    for meta in final_state.get("metas", []):
-        key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
-        if key not in unique_sources:
-            unique_sources[key] = meta
-
-    sources = list(unique_sources.values())
+    # Sources are now deduplicated in generate_answer — no need to deduplicate again
+    sources = final_state.get("metas", [])
 
     # Attach web sources so the UI can display titles + URLs
     web_sources = final_state.get("web_sources", [])

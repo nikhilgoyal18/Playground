@@ -519,9 +519,18 @@ def faithfulness_judge(state: SearchState) -> dict:
 
 def generate_answer(state: SearchState) -> dict:
     """Generate answer from internal chunks."""
-    # Build context blocks
+    # Deduplicate (doc, meta) pairs by unique article identity
+    seen_keys = {}
+    deduped_pairs = []
+    for doc, meta in zip(state["docs"], state["metas"]):
+        key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
+        if key not in seen_keys:
+            seen_keys[key] = True
+            deduped_pairs.append((doc, meta))
+
+    # Build context blocks from deduplicated pairs
     context_blocks = []
-    for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
+    for i, (doc, meta) in enumerate(deduped_pairs, start=1):
         tag_part = f" | {meta['tag']}" if meta.get("tag") else ""
         header = (
             f"[Source {i}] {meta['source_type'].upper()} | "
@@ -564,12 +573,18 @@ def generate_answer(state: SearchState) -> dict:
     tokens_in = getattr(response, 'prompt_eval_count', 0) or 0
     tokens_out = getattr(response, 'eval_count', 0) or 0
 
+    # Return deduplicated docs/metas so state reflects what was actually used
+    deduped_docs = [doc for doc, _ in deduped_pairs]
+    deduped_metas = [meta for _, meta in deduped_pairs]
+
     return {
         "internal_answer": answer,
         "internal_answer_generated": True,
         "internal_no_content_response": no_content,
         "internal_succeeded": not no_content,
         "final_output": answer if not no_content else None,
+        "docs": deduped_docs,
+        "metas": deduped_metas,
         "total_llm_tokens_in": tokens_in,
         "total_llm_tokens_out": tokens_out,
     }
