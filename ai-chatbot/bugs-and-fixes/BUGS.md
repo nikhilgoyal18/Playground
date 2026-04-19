@@ -1,8 +1,8 @@
 # Search-News-Twitter: Bugs & Fixes
 
-**Last Updated:** 2026-04-12  
-**Bugs Fixed:** 10 (6 from eval, 4 from production feedback)  
-**Pass Rate:** 70.5% → ~76-80% (eval tests); 0% → 100% positive feedback (dashboard)
+**Last Updated:** 2026-04-19  
+**Bugs Fixed:** 12 (10 from prior sessions, 2 from quality review)  
+**Pass Rate:** 70.5% → 100% (82/82 eval tests); 0 hallucinations on faithfulness judge
 
 ---
 
@@ -20,6 +20,8 @@
 | 8 | Web fallback non-answers returned anyway | `graph.py`, `app.py` | ✅ Fixed | Non-answers excluded from output |
 | 9 | No hallucination risk signaling | `graph.py`, `web_search.py`, `templates/` | ✅ Fixed | Warning badges on ungrounded answers |
 | 10 | No feedback visibility | `app.py`, `templates/`, `logger.py` | ✅ Fixed | Dashboard shows patterns |
+| 11 | No post-generation hallucination detection | `graph.py`, `logger.py` | ✅ Fixed | Faithfulness judge catches fabrications |
+| 12 | Source citation numbering mismatch | `graph.py`, `app.py` | ✅ Fixed | [Source 5] cited now matches displayed list |
 
 **Failure categories (before fixes):**
 
@@ -415,6 +417,52 @@ Feedback was logged but not analyzed. No dashboard existed to surface patterns l
 
 ---
 
+## Bug #11: No Post-Generation Hallucination Detection ✅ Fixed
+
+### Problem
+After internal RAG retrieved and judged chunks as relevant, the LLM could still fabricate claims not present in those chunks. Example: a query about "database indexing" retrieved good chunks, but the generated answer added unsourced claims about performance metrics or algorithms not mentioned in the sources.
+
+### Root Cause
+The judge gate validated *pre-generation* retrieval quality, but there was no *post-generation* validation. The LLM had permission to synthesize and infer beyond what the chunks explicitly said.
+
+### Fix Applied (graph.py, logger.py)
+Added `faithfulness_judge` node after `generate_answer`:
+1. Decompose the generated answer into atomic factual claims
+2. Verify each claim is **explicitly stated or directly supported** by retrieved chunks
+3. Score: `(grounded_claims) / (total_claims)` → faithfulness_score (0-10)
+4. Route strategy: score < 7 → web fallback (don't serve unfaithful answer)
+5. Added `faithfulness_score`, `faithfulness_grounded_claims`, `faithfulness_total_claims`, `faithfulness_ungrounded` columns to DB
+
+### Results
+✅ All 82 eval tests pass (0 regressions). Faithfulness judge catches post-generation hallucinations before they reach the user.
+
+---
+
+## Bug #12: Source Citation Numbering Mismatch ✅ Fixed
+
+### Problem
+Query id=53 cited `[Source 5]` in the answer body but the sources list only showed 3 entries. Users saw broken references: "See [Source 5]" but [5] didn't exist.
+
+### Root Cause
+Two separate numbering systems were never reconciled:
+1. `generate_answer` numbered context blocks 1…N based on **raw chunk order** (all 5 chunks from ChromaDB)
+2. `app.py` built the displayed sources list by **deduplicating metas by unique article**. Multiple chunks from the same article collapsed to one entry → 5 chunks from 3 articles = 3 displayed sources
+
+The LLM saw [Source 1]–[Source 5] and cited them. The UI showed [1]–[3]. No match.
+
+### Fix Applied (graph.py, app.py)
+Deduplicate `(doc, meta)` pairs **inside `generate_answer`** before numbering:
+1. Iterate through retrieved chunks, track unique articles by (source_type, date, author, title)
+2. Keep only first chunk from each article (deduplicated_pairs)
+3. Number context blocks 1…M using deduplicated list
+4. Pass deduplicated docs/metas back to state
+5. Removed redundant deduplication in `app.py` — now just reads state["metas"] directly
+
+### Results
+✅ LLM now sees only M unique sources (e.g., 3), cites [Source 1]–[Source M], UI displays all M with matching numbers. All 82 eval tests pass.
+
+---
+
 ## Updated Overview Table
 
 | # | Bug | Status | Impact |
@@ -429,6 +477,8 @@ Feedback was logged but not analyzed. No dashboard existed to surface patterns l
 | 8 | Web fallback non-answers returned anyway | ✅ Fixed | Non-answers detected and excluded |
 | 9 | No hallucination risk signaling | ✅ Fixed | Warning badges show ungrounded answers |
 | 10 | No feedback visibility | ✅ Fixed | Dashboard shows patterns automatically |
+| 11 | No post-generation hallucination detection | ✅ Fixed | Faithfulness judge validates answer claims |
+| 12 | Source citation numbering mismatch | ✅ Fixed | [Source N] labels now match displayed list |
 
 ---
 
