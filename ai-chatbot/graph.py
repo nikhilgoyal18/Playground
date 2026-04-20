@@ -389,19 +389,39 @@ def internal_retrieve(state: SearchState) -> dict:
         elif len(conditions) > 1:
             where = {"$and": conditions}
 
+        # Retrieve more chunks than top_k to find all that meet the threshold
+        # Retrieve up to 100 chunks (or all available) to ensure we capture diverse relevant sources
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(state["top_k"], collection.count()),
+            n_results=min(100, collection.count()),
             where=where,
             include=["documents", "metadatas", "distances"],
         )
 
-        docs = results["documents"][0] if results["documents"] else []
-        metas = results["metadatas"][0] if results["metadatas"] else []
-        distances = results["distances"][0] if results["distances"] else []
+        all_docs = results["documents"][0] if results["documents"] else []
+        all_metas = results["metadatas"][0] if results["metadatas"] else []
+        all_distances = results["distances"][0] if results["distances"] else []
 
-        # Check threshold
-        passed = bool(docs and distances and distances[0] <= RELEVANCE_THRESHOLD)
+        # Filter to only chunks that meet the relevance threshold
+        # This ensures we include all relevant sources, not just top-k
+        docs, metas, distances = [], [], []
+        for doc, meta, dist in zip(all_docs, all_metas, all_distances):
+            if dist <= RELEVANCE_THRESHOLD:
+                docs.append(doc)
+                metas.append(meta)
+                distances.append(dist)
+            # Stop searching once we hit the threshold (distances are sorted ascending)
+            elif docs:
+                break
+
+        # Cap at 20 chunks max for judge performance and token budget
+        # (judge can evaluate up to ~20 chunks without issues)
+        docs = docs[:20]
+        metas = metas[:20]
+        distances = distances[:20]
+
+        # Check if we got any results that passed threshold
+        passed = bool(docs and distances)
 
         return {
             "docs": docs,
