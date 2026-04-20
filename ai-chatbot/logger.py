@@ -120,9 +120,14 @@ def init_db():
             conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_grounded_claims INTEGER")
             conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_total_claims INTEGER")
             conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_ungrounded TEXT")
-            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_judge_skipped INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass  # Columns already exist
+        # Separate block: faithfulness_judge_skipped must always be migrated
+        # (previous block may fail early, leaving this column uninitialized)
+        try:
+            conn.execute("ALTER TABLE searches ADD COLUMN faithfulness_judge_skipped INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         # Migrate existing DBs: add intent_class column if missing
         try:
             conn.execute("ALTER TABLE searches ADD COLUMN intent_class TEXT")

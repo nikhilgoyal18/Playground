@@ -1,3 +1,5 @@
+<!-- Created: 2026-01-01 | Updated: 2026-04-19 -->
+
 # AI Playground
 
 A workspace for independent AI-powered projects. Each subfolder is a self-contained project with its own CLAUDE.md and tools.
@@ -17,6 +19,7 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
 - **Project state** (tracking files, caches) lives in `<project>/data/`
 - **Outputs** (summaries, reports) live in `<project>/summaries/` or `<project>/outputs/`
 - Never commit `credentials.json`, `token.json`, or `.env` files
+- **Never delete user-facing data** (logs, databases, interaction history) as a shortcut to fix schema issues. Instead, use targeted `ALTER TABLE` migrations to add missing columns while preserving existing rows. User interactions are valuable data.
 - **Documentation MD files** (CLAUDE.md, REFERENCE.md, BUGS.md, METRICS_AND_GUARDRAILS.md, and any other hand-authored docs — not auto-generated digests or summaries) must include the following comment at the very top of the file:
   ```
   <!-- Created: YYYY-MM-DD | Updated: YYYY-MM-DD -->

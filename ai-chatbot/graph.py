@@ -425,8 +425,8 @@ def judge_gate(state: SearchState) -> dict:
     distances = state.get("distances", [])
 
     for i, (doc, meta) in enumerate(zip(state["docs"], state["metas"]), start=1):
-        # Show first 200 chars of chunk for judge to evaluate
-        preview = doc[:200] if len(doc) > 200 else doc
+        # Show first 300 chars of chunk for judge to evaluate
+        preview = doc[:300] if len(doc) > 300 else doc
         distance = distances[i-1] if i-1 < len(distances) else None
         distance_str = f" (retrieval distance: {distance:.3f})" if distance is not None else ""
         chunk_summaries.append(
@@ -519,7 +519,7 @@ def faithfulness_judge(state: SearchState) -> dict:
 
 def generate_answer(state: SearchState) -> dict:
     """Generate answer from internal chunks."""
-    # Deduplicate (doc, meta) pairs by unique article identity
+    # Deduplicate (doc, meta) pairs by unique article identity, keeping first occurrence
     seen_keys = {}
     deduped_pairs = []
     for doc, meta in zip(state["docs"], state["metas"]):
@@ -556,6 +556,7 @@ def generate_answer(state: SearchState) -> dict:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],
+        options={"num_ctx": 4096},
     )
 
     answer = response.message.content
