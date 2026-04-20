@@ -521,11 +521,17 @@ def faithfulness_judge(state: SearchState) -> dict:
 
 def generate_answer(state: SearchState) -> dict:
     """Generate answer from internal chunks."""
-    # Keep all chunks for maximum content depth - don't deduplicate
-    # Multiple bullets from same article provide richer context
-    deduped_pairs = list(zip(state["docs"], state["metas"]))
+    # Deduplicate by article to avoid redundancy, but keep k=15 for diversity
+    # This ensures the LLM gets varied perspectives, not repetitive bullets
+    seen_keys = {}
+    deduped_pairs = []
+    for doc, meta in zip(state["docs"], state["metas"]):
+        key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
+        if key not in seen_keys:
+            seen_keys[key] = True
+            deduped_pairs.append((doc, meta))
 
-    # Build context blocks from all chunks
+    # Build context blocks from deduplicated pairs
     context_blocks = []
     for i, (doc, meta) in enumerate(deduped_pairs, start=1):
         tag_part = f" | {meta['tag']}" if meta.get("tag") else ""
