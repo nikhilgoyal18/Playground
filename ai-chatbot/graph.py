@@ -389,42 +389,20 @@ def internal_retrieve(state: SearchState) -> dict:
         elif len(conditions) > 1:
             where = {"$and": conditions}
 
-        # Retrieve top-k chunks, but intelligently select for source diversity
+        # Retrieve more chunks to get richer content + natural source diversity
+        # At higher k, we naturally get multiple relevant articles without forced filtering
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(state["top_k"] * 3, collection.count()),  # Retrieve 3x to find diverse sources
+            n_results=min(state["top_k"], collection.count()),
             where=where,
             include=["documents", "metadatas", "distances"],
         )
 
-        all_docs = results["documents"][0] if results["documents"] else []
-        all_metas = results["metadatas"][0] if results["metadatas"] else []
-        all_distances = results["distances"][0] if results["distances"] else []
+        docs = results["documents"][0] if results["documents"] else []
+        metas = results["metadatas"][0] if results["metadatas"] else []
+        distances = results["distances"][0] if results["distances"] else []
 
-        # Select top_k chunks, prioritizing article diversity
-        # Keep track of which articles we've already included
-        seen_articles = {}
-        docs, metas, distances = [], [], []
-        for doc, meta, dist in zip(all_docs, all_metas, all_distances):
-            article_key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
-
-            # Always include the first chunk from each article (best match per article)
-            # Then fill remaining slots with any chunks that meet threshold
-            if article_key not in seen_articles:
-                seen_articles[article_key] = True
-                docs.append(doc)
-                metas.append(meta)
-                distances.append(dist)
-            elif dist <= RELEVANCE_THRESHOLD and len(docs) < state["top_k"]:
-                # Include additional chunks if they meet threshold and we have room
-                docs.append(doc)
-                metas.append(meta)
-                distances.append(dist)
-
-            if len(docs) >= state["top_k"]:
-                break
-
-        # Check if we got any results that passed threshold
+        # Check threshold
         passed = bool(docs and distances and distances[0] <= RELEVANCE_THRESHOLD)
 
         return {
@@ -543,16 +521,11 @@ def faithfulness_judge(state: SearchState) -> dict:
 
 def generate_answer(state: SearchState) -> dict:
     """Generate answer from internal chunks."""
-    # Deduplicate (doc, meta) pairs by unique article identity, keeping first occurrence
-    seen_keys = {}
-    deduped_pairs = []
-    for doc, meta in zip(state["docs"], state["metas"]):
-        key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
-        if key not in seen_keys:
-            seen_keys[key] = True
-            deduped_pairs.append((doc, meta))
+    # Keep all chunks for maximum content depth - don't deduplicate
+    # Multiple bullets from same article provide richer context
+    deduped_pairs = list(zip(state["docs"], state["metas"]))
 
-    # Build context blocks from deduplicated pairs
+    # Build context blocks from all chunks
     context_blocks = []
     for i, (doc, meta) in enumerate(deduped_pairs, start=1):
         tag_part = f" | {meta['tag']}" if meta.get("tag") else ""
