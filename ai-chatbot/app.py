@@ -63,7 +63,7 @@ def search():
     data = request.get_json() or {}
     query = data.get("query", "").strip()
     source = data.get("source", None)
-    top_k = int(data.get("top_k", 20))
+    top_k = int(data.get("top_k", 5))
 
     if not query:
         return jsonify({"error": "Query cannot be empty"}), 400
