@@ -389,11 +389,10 @@ def internal_retrieve(state: SearchState) -> dict:
         elif len(conditions) > 1:
             where = {"$and": conditions}
 
-        # Retrieve more chunks than top_k to find all that meet the threshold
-        # Retrieve up to 100 chunks (or all available) to ensure we capture diverse relevant sources
+        # Retrieve top-k chunks, but intelligently select for source diversity
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(100, collection.count()),
+            n_results=min(state["top_k"] * 3, collection.count()),  # Retrieve 3x to find diverse sources
             where=where,
             include=["documents", "metadatas", "distances"],
         )
@@ -402,26 +401,31 @@ def internal_retrieve(state: SearchState) -> dict:
         all_metas = results["metadatas"][0] if results["metadatas"] else []
         all_distances = results["distances"][0] if results["distances"] else []
 
-        # Filter to only chunks that meet the relevance threshold
-        # This ensures we include all relevant sources, not just top-k
+        # Select top_k chunks, prioritizing article diversity
+        # Keep track of which articles we've already included
+        seen_articles = {}
         docs, metas, distances = [], [], []
         for doc, meta, dist in zip(all_docs, all_metas, all_distances):
-            if dist <= RELEVANCE_THRESHOLD:
+            article_key = (meta.get("source_type"), meta.get("date"), meta.get("author"), meta.get("title"))
+
+            # Always include the first chunk from each article (best match per article)
+            # Then fill remaining slots with any chunks that meet threshold
+            if article_key not in seen_articles:
+                seen_articles[article_key] = True
                 docs.append(doc)
                 metas.append(meta)
                 distances.append(dist)
-            # Stop searching once we hit the threshold (distances are sorted ascending)
-            elif docs:
+            elif dist <= RELEVANCE_THRESHOLD and len(docs) < state["top_k"]:
+                # Include additional chunks if they meet threshold and we have room
+                docs.append(doc)
+                metas.append(meta)
+                distances.append(dist)
+
+            if len(docs) >= state["top_k"]:
                 break
 
-        # Cap at 20 chunks max for judge performance and token budget
-        # (judge can evaluate up to ~20 chunks without issues)
-        docs = docs[:20]
-        metas = metas[:20]
-        distances = distances[:20]
-
         # Check if we got any results that passed threshold
-        passed = bool(docs and distances)
+        passed = bool(docs and distances and distances[0] <= RELEVANCE_THRESHOLD)
 
         return {
             "docs": docs,
