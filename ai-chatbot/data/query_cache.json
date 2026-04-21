@@ -1,16 +1,94 @@
 {
   "d53d0467370a09751dbd40e73f9dc010": {
-    "final_output": "To prepare for AI PM interviews, practice with a human who can provide realistic feedback and \"push back\" during mock conversations. AI tools are not sufficient as they are often too agreeable and fail to provide the necessary calibration needed for effective interview preparation. [Source 1]",
+    "final_output": "To prepare for AI PM interviews, practice with a human who will push back on your ideas, as AI tools are not useful calibration partners [Source 1]. \n\nAdditionally, build-round protocol is recommended before asking the AI to write any code. This involves having the candidate describe their plan first and reviewing it before proceeding, and narrating their thought process throughout the conversation (\"I'm scoping to this because\u2026\", \"I'm skipping X because under time pressure Y matters more.\") [Source 1].\n\nAnother key aspect is adapting to the format of live build rounds, such as those used by Google India and Figma, where candidates prototype in specific tools (Bolt, Emergent, v0) while narrating their thinking aloud over a set period of time (45 minutes) [Source 1]. \n\nBehavioral questions have also shifted, with interviewers asking candidates to walk them through an AI product decision they made that seemed right but would approach differently now. \n\nLastly, daily practice drills can be helpful, where you ask the model to do something it's likely to get wrong (e.g. niche factual claim or edge-case calculation), and then analyze where the model broke down, how it broke down, and what this means in a real product [Source 1].",
     "metas": [
       {
+        "title": "How to prepare for AI PM interviews",
         "tag": "Product",
         "file": "newsletter-insights/summaries/2026-04-17.md",
         "date": "2026-04-17",
         "source_type": "newsletter",
+        "author": "Suhas Motwani (TPF Weekly)"
+      },
+      {
         "title": "How to prepare for AI PM interviews",
+        "tag": "Product",
+        "file": "newsletter-insights/summaries/2026-04-17.md",
+        "date": "2026-04-17",
+        "source_type": "newsletter",
+        "author": "Suhas Motwani (TPF Weekly)"
+      },
+      {
+        "title": "How to prepare for AI PM interviews",
+        "tag": "Product",
+        "file": "newsletter-insights/summaries/2026-04-17.md",
+        "date": "2026-04-17",
+        "source_type": "newsletter",
+        "author": "Suhas Motwani (TPF Weekly)"
+      },
+      {
+        "title": "How to prepare for AI PM interviews",
+        "tag": "Product",
+        "file": "newsletter-insights/summaries/2026-04-17.md",
+        "date": "2026-04-17",
+        "source_type": "newsletter",
+        "author": "Suhas Motwani (TPF Weekly)"
+      },
+      {
+        "title": "How to prepare for AI PM interviews",
+        "tag": "Product",
+        "file": "newsletter-insights/summaries/2026-04-17.md",
+        "date": "2026-04-17",
+        "source_type": "newsletter",
         "author": "Suhas Motwani (TPF Weekly)"
       }
     ],
-    "timestamp": "2026-04-20T00:24:59.233150+00:00"
+    "timestamp": "2026-04-20T01:53:35.202603+00:00"
+  },
+  "dfa8875631d099bd4785decc7f6462e3": {
+    "final_output": "To ace PM interviews for AI, Suhas Motwani from TPF Weekly recommends the following:\n\n1. Practice with a human who will push back, as AI tools are not useful calibration partners for interview prep [Source 1].\n2. Perform daily practice drills where you ask an AI model to perform something it's likely to get wrong, analyze where it broke, and what that would mean in a real product scenario.\n3. Be prepared for behavioral questions that focus on your thought process behind AI product decisions, such as \"Walk me through an AI product decision you made that seemed right but you'd approach differently now\" [Source 1].\n4. Familiarize yourself with practice tools and grading systems used by coaches like Claude Skill, Custom GPT, and Gemini Gem, which grade responses for AI PM interview candidates [Source 2].\n\nAdditionally, Aakash Gupta from Product Growth mentions the emergence of live build rounds where candidates prototype in Bolt, Emergent, or v0 while narrating their thinking aloud, but no specific advice on how to ace these rounds is provided.\n\nBy following Suhas Motwani's tips and staying up-to-date with industry best practices, you can improve your chances of acing AI PM interviews.",
+    "metas": [
+      {
+        "author": "Suhas Motwani (TPF Weekly)",
+        "source_type": "newsletter",
+        "date": "2026-04-17",
+        "tag": "Product",
+        "title": "How to prepare for AI PM interviews",
+        "file": "newsletter-insights/summaries/2026-04-17.md"
+      },
+      {
+        "author": "Suhas Motwani (TPF Weekly)",
+        "source_type": "newsletter",
+        "date": "2026-04-17",
+        "tag": "Product",
+        "title": "How to prepare for AI PM interviews",
+        "file": "newsletter-insights/summaries/2026-04-17.md"
+      },
+      {
+        "author": "Suhas Motwani (TPF Weekly)",
+        "source_type": "newsletter",
+        "date": "2026-04-17",
+        "tag": "Product",
+        "title": "How to prepare for AI PM interviews",
+        "file": "newsletter-insights/summaries/2026-04-17.md"
+      },
+      {
+        "author": "Suhas Motwani (TPF Weekly)",
+        "source_type": "newsletter",
+        "date": "2026-04-17",
+        "tag": "Product",
+        "title": "How to prepare for AI PM interviews",
+        "file": "newsletter-insights/summaries/2026-04-17.md"
+      },
+      {
+        "tag": "AI/ML",
+        "file": "newsletter-insights/summaries/2026-04-09.md",
+        "title": "The AI PM interview has changed. Here's what to expect.",
+        "source_type": "newsletter",
+        "author": "Aakash Gupta (Product Growth)",
+        "date": "2026-04-09"
+      }
+    ],
+    "timestamp": "2026-04-20T01:59:18.680931+00:00"
   }
 }
