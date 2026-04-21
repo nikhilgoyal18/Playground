@@ -52,6 +52,10 @@ Scan Gmail for new newsletters and produce a topic-grouped learning digest.
      - Include step-by-step workflows, code snippets, architecture diagrams, or concrete examples
      - Reference author names, study citations, or external links when mentioned
    - Skip issues where the body has no real content (e.g., "Listen now (33 mins)" podcast announcements with no transcript)
+   - **Sender-specific filtering:** Some senders mix educational content with promotional content in the same email. Do NOT skip the whole email — extract the educational parts only and ignore promotional sections:
+     - **Emonthebrain** (`emonthebrain.com`): Skip masterclass promos, class signup CTAs, cohort announcements, "join my program" sections — extract everything else
+     - **Nancy Chu** (`nancychu.co`): Skip course/cohort promotions, coaching upsells, "enroll now" / "limited spots" sections — extract everything else
+     - If an entire email from these senders is purely promotional with zero educational content, skip it entirely
 
 6. Write the digest to `summaries/YYYY-MM-DD.md` using today's date. Format:
 

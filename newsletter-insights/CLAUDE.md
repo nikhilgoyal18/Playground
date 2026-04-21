@@ -73,6 +73,16 @@ Digests must be **comprehensive and learnable**—readers should gain actionable
 - Issues with no substantive body content
 - Link-only shares with no context
 
+### Sender-Specific Filtering Rules
+Some senders mix educational content with promotional content in the same email. **Do not skip the whole email** — extract the educational parts and ignore the promotional parts.
+
+| Sender | Domain | What to ignore |
+|--------|--------|----------------|
+| Emonthebrain | emonthebrain.com | Masterclass promos, class signup CTAs, cohort announcements, "join my program" sections |
+| Nancy Chu | nancychu.co | Course/cohort promotions, interview coaching upsells, "enroll now" / "limited spots" sections |
+
+For these senders: extract insights, frameworks, and learnable content from the body. Skip any paragraph or section that is solely promoting a paid offering, class, or signup link. If the entire email is promotional with no educational content, skip it entirely.
+
 ### Quality Check
 Bad: "Key architectural patterns discussed"  
 Good: "Drata's 80+ engineers achieved 4x more test cases and 86% faster QA cycles using AI-native testing. QA Wolf delivers 80% coverage in weeks with 24-hour maintenance; when CAC exceeds LTV, the business closes—not if, but when."
