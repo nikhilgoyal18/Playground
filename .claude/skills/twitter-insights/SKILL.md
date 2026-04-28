@@ -9,6 +9,7 @@ description: >
   "today's tweets", "what's on my twitter", "twitter timeline", "twitter insights",
   "tweet summary", "show me my twitter feed", "give me today's twitter scan".
 allowed-tools: Bash(python3 fetch_tweets.py*), Write, Read
+agent: true
 ---
 
 # Twitter Insights — DEEP DIGEST

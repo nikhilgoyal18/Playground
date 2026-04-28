@@ -7,6 +7,7 @@ description: >
   "today's newsletters", "what's in my newsletters", "newsletter summary", "show me newsletters",
   "give me today's newsletter scan".
 allowed-tools: Bash(python3.14 scan_newsletters.py*), Write, Read
+agent: true
 ---
 
 # Newsletter Insights

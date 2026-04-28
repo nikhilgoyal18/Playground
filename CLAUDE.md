@@ -1,4 +1,4 @@
-<!-- Created: 2026-01-01 | Updated: 2026-04-27 -->
+<!-- Created: 2026-01-01 | Updated: 2026-04-28 -->
 
 # AI Playground
 
@@ -33,6 +33,14 @@ A workspace for independent AI-powered projects. Each subfolder is a self-contai
   <!-- Created: YYYY-MM-DD | Updated: YYYY-MM-DD -->
   ```
   Update the `Updated` date whenever the file is meaningfully changed.
+
+## Subagents
+
+Spawn subagents to isolate context, parallelize independent work, or offload bulk mechanical tasks. Don't spawn when the parent needs the reasoning, when synthesis requires holding things together, or when spawn overhead dominates.
+
+If a subagent realizes it needs a higher tier than itself, return to the parent.
+
+Parent owns final output and cross-spawn synthesis. User instructions override.
 
 ## Auto-invoke Skills
 
