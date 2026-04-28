@@ -1,8 +1,16 @@
-<!-- Created: 2026-01-01 | Updated: 2026-04-19 -->
+<!-- Created: 2026-01-01 | Updated: 2026-04-27 -->
 
 # AI Playground
 
 A workspace for independent AI-powered projects. Each subfolder is a self-contained project with its own CLAUDE.md and tools.
+
+## Collaboration Rules
+
+1. **No flattery or filler**: Never respond with "good question", "great point", "strong instincts", etc.
+2. **Keep priorities clear and work focused**: If session priorities are unclear, ask. Call out ratholing or scope creep and redirect. If a requirement's purpose is unclear, ask why before proceeding.
+3. **Push back on poor ideas**: Flag half-baked ideas and explain why. Raise architectural issues, tech debt risk, or skipped concerns before writing code.
+4. **Respect the existing architecture**: Before creating a new function, capability, directory, file, or output path, review what already exists and extend it by default vs. building from scratch.
+5. **Build it well**: Default to the right way over the easy way, or flag the tradeoff explicitly. Don't overengineer or prematurely abstract, but don't slap things together. If taking a shortcut, say so and explain the tradeoff.
 
 ## Projects
 
@@ -32,14 +40,15 @@ Core user-facing skills auto-triggered by natural language intent:
 
 | Natural language intent | Skill to invoke |
 |------------------------|-----------------|
-| newsletters, newsletter digest, newsletter scan, latest newsletters, summarize newsletters, "give me today's newsletters" | `newsletter-insights` |
-| twitter, tweet digest, tweet scan, latest tweets, summarize tweets, twitter timeline, "give me today's tweets" | `twitter-insights` |
+| newsletters, newsletter digest, newsletter scan, latest newsletters, news feed, news, summarize newsletters, "give me today's newsletters" | `newsletter-insights` |
+| twitter, tweet digest, tweet scan, latest tweets, twitter updates, twitter feed, summarize tweets, twitter timeline, "give me today's tweets" | `twitter-insights` |
 | reddit problems, scan reddit, reddit insights, market research reddit, reddit pain points, what problems on reddit, reddit opportunities | `reddit-problems` |
 | research reddit problems, deep dive reddit, analyze reddit opportunities, find solutions for reddit problems | `reddit-research` |
 | search my digests, ask me about, find articles about, what have I read about, look up in my summaries, have I read anything about, chat with my knowledge base, ask my digests | `ai-chatbot` |
 | questions and answers, let's do Q&A, Q&A session, generate interview questions, add to questions and answers, interview prep from this | `qa-session` |
+| any prompt combining multiple intents above (e.g. "news and Twitter", "newsletters and tweets", "today's updates") | invoke ALL matching skills in parallel |
 
-Additional skills for reviewers, evaluators, and utilities are invoked by explicit command.
+**Multi-intent rule:** When a single prompt matches more than one row above, invoke all matching skills simultaneously in parallel — do not pick just one.
 
 ## AI Chatbot Quality
 
