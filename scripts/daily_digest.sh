@@ -28,6 +28,8 @@ sanitize_json() {
 }
 
 # Verify skill files haven't been tampered with using stored SHA256 checksums.
+# IMPORTANT: After updating any skill file, regenerate checksums by running:
+#   shasum -a 256 .claude/skills/twitter-insights/SKILL.md .claude/skills/newsletter-insights/SKILL.md > scripts/.skill-checksums
 check_skill_integrity() {
     local checksums_file="$PLAYGROUND/scripts/.skill-checksums"
     if [ ! -f "$checksums_file" ]; then
@@ -113,11 +115,17 @@ run_twitter() {
     local tmp_file
     tmp_file=$(mktemp /tmp/twitter-digest-XXXXXX)
 
-    claude -p "$prompt" --dangerously-skip-permissions > "$tmp_file" 2>>"$LOG" || {
-        log "[Twitter] claude -p failed"
+    timeout 600 claude -p "$prompt" --dangerously-skip-permissions > "$tmp_file" 2>>"$LOG"
+    local exit_code=$?
+    if [ $exit_code -eq 124 ]; then
+        log "[Twitter] ERROR: claude -p timed out after 600s"
         rm -f "$tmp_file"
         return 1
-    }
+    elif [ $exit_code -ne 0 ]; then
+        log "[Twitter] claude -p failed (exit $exit_code)"
+        rm -f "$tmp_file"
+        return 1
+    fi
 
     # Validate output — first line check
     local first_line
@@ -154,7 +162,7 @@ run_newsletter() {
 
     log "[Newsletter] Fetching newsletters..."
     local newsletters
-    newsletters=$(cd "$PLAYGROUND/newsletter-insights" && python3.14 scan_newsletters.py 2>>"$LOG") || {
+    newsletters=$(cd "$PLAYGROUND/newsletter-insights" && python3 scan_newsletters.py 2>>"$LOG") || {
         log "[Newsletter] Fetch failed"
         return 1
     }
@@ -188,11 +196,17 @@ run_newsletter() {
     local tmp_file
     tmp_file=$(mktemp /tmp/newsletter-digest-XXXXXX)
 
-    claude -p "$prompt" --dangerously-skip-permissions > "$tmp_file" 2>>"$LOG" || {
-        log "[Newsletter] claude -p failed"
+    timeout 600 claude -p "$prompt" --dangerously-skip-permissions > "$tmp_file" 2>>"$LOG"
+    local exit_code=$?
+    if [ $exit_code -eq 124 ]; then
+        log "[Newsletter] ERROR: claude -p timed out after 600s"
         rm -f "$tmp_file"
         return 1
-    }
+    elif [ $exit_code -ne 0 ]; then
+        log "[Newsletter] claude -p failed (exit $exit_code)"
+        rm -f "$tmp_file"
+        return 1
+    fi
 
     # Validate output — first line check
     local first_line
